@@ -1,0 +1,4 @@
+BasedOnStyle: Mozilla
+ColumnLimit: 80
+AllowShortFunctionsOnASingleLine: None
+Standard: Cpp23
