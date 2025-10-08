@@ -2,23 +2,23 @@
 #include <ranges>
 #include <types.h>
 
-namespace mbb {
-
 /**
  * @brief Chain of blocks, each pointing to the next one, in contigous memory
  */
-template <std::size_t block_size, std::size_t block_count>
+template<std::size_t block_size, std::size_t block_count>
   requires(block_size > 0 && is_power_of_two<block_size> && block_count > 0)
-class Freelist : std::array<::Block<block_size>, block_count> {
+class Freelist : std::array<::Block<block_size>, block_count>
+{
 public:
   using Block = ::Block<block_size>;
   using Base = std::array<Block, block_count>;
 
 private:
-  Block *_head{nullptr};
-  size_t _count{0};
+  Block* _head{ nullptr };
+  size_t _count{ 0 };
 
-  void insert(Block &elem) {
+  void insert(Block& elem)
+  {
     elem.next_free = _head;
     _head = &elem;
     _count++;
@@ -42,8 +42,9 @@ public:
    * Claims ownership of everything in array.
    * @tme n
    */
-  void reset() {
-    for (auto &current : std::ranges::reverse_view{*this}) {
+  void reset()
+  {
+    for (auto& current : std::ranges::reverse_view{ *this }) {
       insert(current);
     }
   }
@@ -52,7 +53,8 @@ public:
    * @brief Returns head for reading
    * @time 1
    */
-  const Block &head() {
+  const Block& head()
+  {
     if (_head == nullptr) {
       throw std::bad_alloc();
     }
@@ -66,7 +68,8 @@ public:
    *
    * @throws when head is nullptr
    */
-  Block *pop() {
+  Block* pop()
+  {
     if (_head == nullptr) {
       throw std::bad_alloc();
     }
@@ -81,13 +84,14 @@ public:
    * @time 1
    * @throws bad_alloc -> when list is full & when elem does not belong to list
    */
-  void push(Block &elem) {
+  void push(Block& elem)
+  {
     if (_count >= this->max_size()) {
       throw std::bad_alloc();
     }
 
     auto belongs_to_buffer =
-        &elem >= this->data() && &elem < this->data() + this->size();
+      &elem >= this->data() && &elem < this->data() + this->size();
     if (!belongs_to_buffer) {
       throw std::bad_alloc();
     }
@@ -95,5 +99,3 @@ public:
     insert(elem);
   }
 };
-
-} // namespace mbb

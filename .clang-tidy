@@ -21,6 +21,4 @@ WarningsAsErrors: '' # '*' would treat all warnings as errors
 # restrict checks to src, avoid noise from third-party libraries
 HeaderFilterRegex: 'src/.*'  
 # will match the style defined in .clang-format
-FormatStyle: file 
-ExtraArgs: 
-  - -std=c++23
+FormatStyle: none 

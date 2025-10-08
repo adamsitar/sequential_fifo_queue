@@ -2,8 +2,6 @@
 #pragma once
 #include <memory_resource>
 
-namespace mbb {
-
 /**
  * @defgroup managed_resource managed_resource
  * @brief Abstract interface providing additional control methods
@@ -33,14 +31,15 @@ namespace mbb {
  *
  * @note This class is non-copyable and non-movable.
  */
-class Managed : public std::pmr::memory_resource {
+class Managed : public std::pmr::memory_resource
+{
 public:
   Managed() = default;
   ~Managed() override = default;
-  Managed(const Managed &) = delete;
-  Managed &operator=(const Managed &) = delete;
-  Managed(Managed &&) = delete;
-  Managed &operator=(Managed &&) = delete;
+  Managed(const Managed&) = delete;
+  Managed& operator=(const Managed&) = delete;
+  Managed(Managed&&) = delete;
+  Managed& operator=(Managed&&) = delete;
 
   /**
    * @brief Release or free all internally allocated memory.
@@ -63,5 +62,3 @@ public:
 };
 
 /// @} end group
-
-} // namespace mbb

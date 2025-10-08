@@ -8,7 +8,6 @@
 #include <new>
 #include <types.h>
 
-namespace mbb {
 /**
  * @defgroup buffer Buffer
  * @brief Manages a fixed number of fixed-size memory blocks in a freelist.
@@ -22,7 +21,7 @@ namespace mbb {
 /// @addtogroup api
 /// @{
 
-template <size_t block_size, size_t block_count>
+template<size_t block_size, size_t block_count>
 concept BufferConcept = requires {
   (block_size > 0);
   (block_count > 0);
@@ -36,17 +35,21 @@ concept BufferConcept = requires {
  * @tparam block_size The size of each block in bytes.
  * @tparam block_count The total number of blocks in the pool.
  */
-template <size_t block_size, size_t block_count>
+template<size_t block_size, size_t block_count>
   requires BufferConcept<block_size, block_count>
-class Buffer : public Managed {
+class Buffer : public Managed
+{
   using Block = Block<block_size>;
 
-  std::pmr::memory_resource *_upstream{std::pmr::get_default_resource()};
+  std::pmr::memory_resource* _upstream{ std::pmr::get_default_resource() };
   Freelist<block_size, block_count> _list{};
 
 public:
   Buffer() = default;
-  explicit Buffer(std::pmr::memory_resource *upstream) : _upstream(upstream) {}
+  explicit Buffer(std::pmr::memory_resource* upstream)
+    : _upstream(upstream)
+  {
+  }
 
 private:
   /**
@@ -56,8 +59,9 @@ private:
    * @param alignment is > 0, power of two, <= bytes
    * @throws std::bad_alloc if null upstream
    */
-  void *do_allocate(size_t bytes = block_size,
-                    size_t alignment = alignof(max_align_t)) override {
+  void* do_allocate(size_t bytes = block_size,
+                    size_t alignment = alignof(max_align_t)) override
+  {
     assert(bytes > 0);
     assert(alignment > 0);
     assert(alignment <= bytes);
@@ -82,17 +86,18 @@ private:
    * @param bytes is > 0
    * @param alignment is > 0, <= bytes
    */
-  void do_deallocate(void *ptr, size_t bytes, size_t alignment) override {
+  void do_deallocate(void* ptr, size_t bytes, size_t alignment) override
+  {
     assert(ptr != nullptr);
     assert(bytes > 0);
     assert(alignment > 0);
     assert(alignment <= bytes);
 
-    auto block = static_cast<Block *>(ptr);
+    auto block = static_cast<Block*>(ptr);
 
     try {
       _list.push(*block);
-    } catch (std::exception &e) {
+    } catch (std::exception& e) {
       _upstream->deallocate(ptr, bytes, alignment);
     };
   }
@@ -101,8 +106,9 @@ private:
    * @brief Performs strict pointer comparison
    * @time 1
    */
-  [[nodiscard]] bool
-  do_is_equal(const std::pmr::memory_resource &other) const noexcept override {
+  [[nodiscard]] bool do_is_equal(
+    const std::pmr::memory_resource& other) const noexcept override
+  {
     return this == &other;
   }
 
@@ -112,11 +118,10 @@ private:
    */
   void reset() override { _list.reset(); }
 
-  [[nodiscard]] std::size_t size() const noexcept override {
+  [[nodiscard]] std::size_t size() const noexcept override
+  {
     return _list.size();
   };
 };
 
 /// @} end group api
-
-} // namespace mbb

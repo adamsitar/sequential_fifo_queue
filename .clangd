@@ -1,2 +1,4 @@
 CompileFlags:
   CompilationDatabase: build/linux_debug
+  Add: -Wno-unknown-warning-option
+  Remove: [-m*, -f*]

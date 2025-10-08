@@ -20,10 +20,11 @@
 /**
  * @brief Test fixture, constructs with std::pmr::new_delete_resource upstream
  */
-class Buffer : public testing::Test {
+class BufferTest : public testing::Test
+{
 public:
-  size_t _max_align{alignof(std::max_align_t)};
-  mbb::Buffer<64, 4> _buffer;
+  size_t _max_align{ alignof(std::max_align_t) };
+  Buffer<64, 4> _buffer;
 };
 
 /**
@@ -33,8 +34,9 @@ public:
  * confirms returned pointer is not null,
  * and deallocates without error.
  */
-TEST_F(Buffer, BasicAllocation) {
-  void *p = _buffer.allocate(32);
+TEST_F(BufferTest, BasicAllocation)
+{
+  void* p = _buffer.allocate(32);
   ASSERT_NE(p, nullptr);
 
   _buffer.deallocate(p, 32);
@@ -47,8 +49,9 @@ TEST_F(Buffer, BasicAllocation) {
  * ensures allocation succeeds,
  * then deallocates correctly through fallback.
  */
-TEST_F(Buffer, AllocationLargeFallsBack) {
-  void *p = _buffer.allocate(128);
+TEST_F(BufferTest, AllocationLargeFallsBack)
+{
+  void* p = _buffer.allocate(128);
   ASSERT_NE(p, nullptr);
 
   _buffer.deallocate(p, 128);
@@ -62,10 +65,11 @@ TEST_F(Buffer, AllocationLargeFallsBack) {
  * next allocation falls back upstream,
  * after deallocation a block can be reused.
  */
-TEST_F(Buffer, ExhaustBuffer) {
-  std::array<void *, 4> blocks{};
+TEST_F(BufferTest, ExhaustBuffer)
+{
+  std::array<void*, 4> blocks{};
 
-  for (auto &block : blocks) {
+  for (auto& block : blocks) {
     block = _buffer.allocate(64);
     ASSERT_NE(block, nullptr);
   }
@@ -73,14 +77,15 @@ TEST_F(Buffer, ExhaustBuffer) {
   EXPECT_THROW(_buffer.allocate(64), std::bad_alloc);
 
   _buffer.deallocate(blocks[0], 64);
-  void *p2 = _buffer.allocate(32);
+  void* p2 = _buffer.allocate(32);
   ASSERT_EQ(p2, blocks[0]);
 }
 
 /**
  * @brief Allocations of size zero throw @c std::bad_alloc.
  */
-TEST_F(Buffer, ZeroByteAllocationThrows) {
+TEST_F(BufferTest, ZeroByteAllocationThrows)
+{
   ASSERT_DEATH(_buffer.allocate(0), "");
 }
 
@@ -90,8 +95,9 @@ TEST_F(Buffer, ZeroByteAllocationThrows) {
  * Tests that deallocating a pointer allocated via global new
  * and outside of buffer memory, is forwarded deallocation upstream.
  */
-TEST_F(Buffer, PointerOutsideBufferFallsBackOnDeallocate) {
-  void *p = ::operator new(64, std::align_val_t(_max_align));
+TEST_F(BufferTest, PointerOutsideBufferFallsBackOnDeallocate)
+{
+  void* p = ::operator new(64, std::align_val_t(_max_align));
   _buffer.deallocate(p, 64);
 }
 
@@ -101,8 +107,9 @@ TEST_F(Buffer, PointerOutsideBufferFallsBackOnDeallocate) {
  * Compares the same buffer instance to itself, and to different buffer
  * instances.
  */
-TEST_F(Buffer, IsEqualWorks) {
-  mbb::Buffer<64, 4> another_buffer;
+TEST_F(BufferTest, IsEqualWorks)
+{
+  Buffer<64, 4> another_buffer;
   EXPECT_TRUE(_buffer == _buffer);
   EXPECT_FALSE(_buffer == another_buffer);
 }
