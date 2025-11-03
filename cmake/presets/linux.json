@@ -1,0 +1,94 @@
+{
+  "version": 8,
+  "include": [
+    "base.json"
+  ],
+  "configurePresets": [
+    {
+      "name": "_linux",
+      "hidden": true,
+      "condition": {
+        "type": "allOf",
+        "conditions": [
+          {
+            "type": "inList",
+            "string": "${hostSystemName}",
+            "list": [
+              "Darwin",
+              "Linux"
+            ]
+          }
+        ]
+      },
+      "cacheVariables": {
+        "DCMAKE_CXX_COMPILER": "clang++"
+      }
+    },
+    {
+      "name": "linux_debug",
+      "inherits": [
+        "_base",
+        "_linux",
+        "_debug"
+      ]
+    },
+    {
+      "name": "linux_release",
+      "inherits": [
+        "_base",
+        "_linux",
+        "_release"
+      ]
+    },
+    {
+      "name": "linux_coverage",
+      "inherits": [
+        "_base",
+        "_linux"
+      ],
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Coverage"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "linux_debug",
+      "configurePreset": "linux_debug"
+    },
+    {
+      "name": "linux_release",
+      "configurePreset": "linux_release"
+    },
+    {
+      "name": "linux_coverage",
+      "configurePreset": "linux_coverage"
+    },
+    {
+      "name": "format",
+      "configurePreset": "linux_debug",
+      "targets": [
+        "format"
+      ]
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "linux_debug",
+      "configurePreset": "linux_debug",
+      "environment": {
+        "ASAN_OPTIONS": "detect_stack_use_after_return=1"
+      },
+      "output": {
+        "outputOnFailure": true
+      }
+    },
+    {
+      "name": "linux_coverage",
+      "configurePreset": "linux_coverage",
+      "output": {
+        "outputOnFailure": true
+      }
+    }
+  ]
+}

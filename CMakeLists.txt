@@ -5,12 +5,36 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 project(queue CXX)
 
-add_definitions(-w)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 set(CMAKE_CXX_STANDARD 23)
 
 set(CMAKE_COLOR_MAKEFILE ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
+
+add_definitions(-w)
+
+# hardening
+add_compile_options(
+  # Warnings (commented out - uncomment to enable)
+  # -Wall -Wextra -Wpedantic
+  # -Wformat=2 -Wformat-security -Wnull-dereference
+  # -Wconversion -Wsign-conversion -Wcast-align
+  # -Werror=format-security -Werror=return-type
+  -Wuninitialized
+  -fPIE # for ASLR
+  $<$<CONFIG:Debug>:-ftrivial-auto-var-init=pattern>
+  $<$<CONFIG:Release>:-fstack-protector-strong>
+  $<$<CONFIG:Release>:-fno-strict-overflow>
+  $<$<CONFIG:Release>:-ftrivial-auto-var-init=zero>
+  $<$<CONFIG:Release>:-fcf-protection=full>
+  $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:GNU>>:-fstack-clash-protection>
+)
+add_link_options(-pie)
+
+add_compile_definitions(
+  _GLIBCXX_ASSERTIONS                      # STL bounds checking (all builds)
+  $<$<CONFIG:Release>:_FORTIFY_SOURCE=3>   # Buffer overflow detection (Release only)
+)
 
 include(Sanitize)
 

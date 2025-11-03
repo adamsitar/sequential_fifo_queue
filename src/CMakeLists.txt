@@ -1,28 +1,23 @@
-file(GLOB SOURCE_FILES CONFIGURE_DEPENDS "*.cpp")
-file(GLOB TEST_FILES CONFIGURE_DEPENDS "*.t.cpp")
-file(GLOB PRIVATE_HEADERS CONFIGURE_DEPENDS "*.h")
+# Add subdirectories - core must come first (provides shared types/concepts)
+add_subdirectory(core)
+add_subdirectory(allocators)
+add_subdirectory(datastructures)
+add_subdirectory(c_api)
 
-set(LIB_NAME queue)
+# Main executable
+add_executable(main main.cpp)
 
-add_library(${LIB_NAME} STATIC ${SOURCE_FILES})
-
+# Include types.h from src directory
 target_include_directories(
-  ${LIB_NAME}
-  PUBLIC
+  main
+  PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# test executable
-add_executable(
-  ${LIB_NAME}_test
-  ${TEST_FILES}
-)
-
-find_package(GTest REQUIRED)
+# Link against both libraries
 target_link_libraries(
-  ${LIB_NAME}_test PRIVATE
-  ${LIB_NAME}
-  GTest::gtest_main
+  main
+  PRIVATE
+  allocators
+  datastructures
 )
-
-gtest_discover_tests(${LIB_NAME}_test)
