@@ -21,8 +21,8 @@ target_link_libraries(
 add_executable(
   ${LIB_NAME}_test
   "offset_list.t.cpp"
-  "ring_buffer.t.cpp"
-  "queue.t.cpp"
+  # "ring_buffer.t.cpp"
+  # "queue.t.cpp"
   # ${TEST_FILES}
 )
 

@@ -4,25 +4,6 @@
 #include <local_buffer.h>
 #include <vector>
 
-/*
-First Half - Core Functionality (5 tests):
-1. CanConstruct - Verifies basic construction
-2. CanAllocateSingleBlock - Single allocation
-3. CanAllocateAndDeallocate - Basic lifecycle
-4. CanAllocateMultipleBlocks - Multiple allocations with uniqueness
-verification
-5. CreatesNewSegmentWhenFull - Validates segment expansion behavior
-
-Second Half - Segmented Pointer Tests (5 tests):
-6. SegmentedPtrNullHandling - Null pointer semantics
-7. SegmentedPtrConversionRoundtrip - Raw pointer ↔ segmented pointer
-conversion
-8. SegmentedPtrComparison - Equality and ordering operators
-9. SegmentedPtrAccessorMethods - Tests get_segment_id() and get_offset()
-10. TwoBuffersDistinctSegmentedPtrs - The comprehensive multi-buffer test
-*/
-
-// Configuration
 constexpr size_t upstream_block_size{2048};
 constexpr size_t upstream_block_count{16};
 constexpr size_t dynamic_block_size{256};
@@ -35,10 +16,6 @@ protected:
   upstream_buffer upstream;
   test_buffer buffer{&upstream};
 };
-
-// ============================================================================
-// First Half: Basic dynamic_buffer Functionality
-// ============================================================================
 
 TEST_F(DynamicBufferTest, CanConstruct) {
   // Construction should succeed without allocating segments
@@ -117,10 +94,6 @@ TEST_F(DynamicBufferTest, CreatesNewSegmentWhenFull) {
     EXPECT_TRUE(dealloc_result.has_value());
   }
 }
-
-// ============================================================================
-// Second Half: Segmented Pointer Tests
-// ============================================================================
 
 TEST_F(DynamicBufferTest, SegmentedPtrNullHandling) {
   // Default constructed pointer should be null

@@ -23,8 +23,6 @@ public:
   struct node {
     node_pointer next;
     T value;
-    explicit node(auto &&val)
-        : next(nullptr), value(std::forward<decltype(val)>(val)) {}
   };
 
   static_assert(sizeof(node) <= allocator_type::block_size_v,
@@ -45,8 +43,6 @@ public:
   explicit offset_list(allocator_type *allocator)
       : _head(nullptr), _tail(nullptr) {
     fatal(allocator == nullptr, "Allocator cannot be null");
-
-    // Always update static allocator (handles allocator replacement)
     storage::_allocator = allocator;
   }
 
@@ -54,6 +50,7 @@ public:
 
   bool is_empty() const noexcept { return _head == nullptr; }
 
+  // traverse, O(n)
   size_t size() const noexcept {
     size_t count = 0;
     for (auto current = _head; current != nullptr; current = current->next) {
@@ -66,13 +63,12 @@ public:
     requires std::constructible_from<T, U>
   result<> push_front(U &&value) noexcept {
     auto mem = TRY(storage::_allocator->allocate_block());
-    node *new_node = new (mem) node(std::forward<U>(value));
+    auto new_node = new (mem) node{nullptr, T(std::forward<U>(value))};
     node_pointer new_node_ptr(new_node);
 
     new_node_ptr->next = _head;
     _head = new_node_ptr;
 
-    // Update tail if list was empty
     if (_tail == nullptr) {
       _tail = new_node_ptr;
     }
@@ -82,18 +78,12 @@ public:
 
   result<> emplace_front(auto &&...args) noexcept {
     auto mem = TRY(storage::_allocator->allocate_block());
-
-    void *raw_mem = static_cast<void *>(mem);
-    node *new_node = static_cast<node *>(raw_mem);
-    new_node->next = nullptr;
-    new (&new_node->value) T(std::forward<decltype(args)>(args)...);
-
-    node_pointer new_node_ptr(new_node); // Cache hit!
+    auto new_node = new (mem) node{nullptr, T(exforward(args)...)};
+    node_pointer new_node_ptr(new_node);
 
     new_node_ptr->next = _head;
     _head = new_node_ptr;
 
-    // Update tail if list was empty
     if (_tail == nullptr) {
       _tail = new_node_ptr;
     }
@@ -104,199 +94,85 @@ public:
   result<T> pop_front() noexcept {
     fail(is_empty(), "list empty");
 
-    // Extract segment_id before doing anything else
-    auto segment_id = _head.get_segment_id();
+    node_pointer to_delete = _head;
+    T value = std::move(to_delete->value);
+    _head = to_delete->next;
 
-    // Get raw pointer to node
-    node *front_node = static_cast<node *>(_head);
-    fatal(front_node == nullptr);
-
-    // Move value out before destroying node
-    T value = std::move(front_node->value);
-
-    // Update head (must be done before destruction in case next is within the
-    // node)
-    _head = front_node->next;
-
-    // Update tail if list is now empty
     if (_head == nullptr) {
       _tail = nullptr;
     }
 
-    // Destroy the node
-    front_node->~node();
-
-    // Convert to allocator's pointer type for deallocation
-    using block_type = typename allocator_type::block_type;
-    auto *block_raw = reinterpret_cast<block_type *>(front_node);
-    typename allocator_type::pointer_type alloc_ptr(segment_id, block_raw);
-
-    // Deallocate block
-    storage::_allocator->deallocate_block(alloc_ptr);
+    to_delete->~node();
+    storage::_allocator->deallocate_block(to_delete);
 
     return value;
   }
 
+  // O(n) if list is more than 1
   result<T> pop_back() noexcept {
     fail(is_empty(), "list empty");
 
-    // Extract segment_id before doing anything else
-    auto segment_id = _tail.get_segment_id();
+    node_pointer to_delete = _tail;
+    T value = std::move(to_delete->value);
 
-    // Get raw pointer to tail node
-    node *back_node = static_cast<node *>(_tail);
-    fatal(back_node == nullptr);
-
-    // Move value out before destroying node
-    T value = std::move(back_node->value);
-
-    // Find second-to-last node (need to traverse - O(n) for singly-linked list)
     if (_head == _tail) {
-      // Only one node
       _head = nullptr;
       _tail = nullptr;
     } else {
-      // Multiple nodes - traverse to find second-to-last
-      node *current = static_cast<node *>(_head);
+      node *current = _head;
       while (current->next != _tail) {
-        current = static_cast<node *>(current->next);
+        current = current->next;
       }
+
       current->next = nullptr;
       _tail = node_pointer(current);
     }
 
-    // Destroy the node
-    back_node->~node();
-
-    // Convert to allocator's pointer type for deallocation
-    using block_type = typename allocator_type::block_type;
-    auto *block_raw = reinterpret_cast<block_type *>(back_node);
-    typename allocator_type::pointer_type alloc_ptr(segment_id, block_raw);
-
-    // Deallocate block
-    storage::_allocator->deallocate_block(alloc_ptr);
+    to_delete->~node();
+    storage::_allocator->deallocate_block(to_delete);
 
     return value;
   }
 
   result<const T *> front() const noexcept {
     fail(is_empty(), "list empty");
-    node *front_node = static_cast<node *>(_head);
-    fatal(front_node == nullptr);
-    return &front_node->value;
+    return &_head->value;
   }
 
   result<const T *> back() const noexcept {
     fail(is_empty(), "list empty");
-    node *back_node = static_cast<node *>(_tail);
-    fatal(back_node == nullptr);
-    return &back_node->value;
+    fatal(_tail == nullptr);
+    return &_tail->value;
   }
 
+  // traverse, O(n)
   void clear() noexcept {
     while (!is_empty()) {
-      // Extract segment_id before modifying anything
-      auto segment_id = _head.get_segment_id();
-
-      // Get raw pointer to current node
-      node *current = static_cast<node *>(_head);
-
-      // Update head
-      _head = current->next;
-
-      // Destroy the node
-      current->~node();
-
-      // Convert to allocator's pointer type for deallocation
-      using block_type = typename allocator_type::block_type;
-      auto *block_raw = reinterpret_cast<block_type *>(current);
-      typename allocator_type::pointer_type alloc_ptr(segment_id, block_raw);
-
-      // Deallocate block
-      storage::_allocator->deallocate_block(alloc_ptr);
+      node_pointer to_delete = _head;
+      _head = _head->next;
+      to_delete->~node();
+      storage::_allocator->deallocate_block(to_delete);
     }
 
-    // Ensure tail is null when list is empty
     _tail = nullptr;
   }
 
-  // ============================================================================
-  // Iterator Support
-  // ============================================================================
-
   class iterator;
-
-  /**
-   * @brief Get iterator to position before first element.
-   * @time O(1)
-   *
-   * This special iterator allows uniform handling of insertions/erasures
-   * at the head using the _after operations. Cannot be dereferenced.
-   */
   iterator before_begin() noexcept { return iterator(this, nullptr, true); }
   iterator cbefore_begin() const noexcept {
     return iterator(this, nullptr, true);
   }
-
   iterator begin() const noexcept {
     return iterator(this, static_cast<node *>(_head), false);
   }
-
   iterator end() const noexcept { return iterator(this, nullptr, false); }
-
-  // ============================================================================
-  // Singly-Linked List Primitives
-  // ============================================================================
-
-  /**
-   * @brief Insert element after the given position.
-   * @param pos Iterator to position after which to insert
-   * @param value Value to insert (forwarded)
-   * @return Iterator to the inserted element, or end() if allocation fails
-   * @time O(1)
-   */
   iterator insert_after(iterator pos, auto &&value) noexcept
     requires std::constructible_from<T, decltype(value)>;
-
-  /**
-   * @brief Construct element in-place after the given position.
-   * @param pos Iterator to position after which to insert
-   * @param args Constructor arguments for T
-   * @return Iterator to the inserted element, or end() if allocation fails
-   * @time O(1)
-   */
   iterator emplace_after(iterator pos, auto &&...args) noexcept;
-
-  /**
-   * @brief Erase the element after the given position.
-   * @param pos Iterator to position before the element to erase
-   * @return Iterator to the element after the erased one
-   * @time O(1)
-   *
-   * Example:
-   *   auto it = list.before_begin();
-   *   list.erase_after(it); // Erases the first element
-   */
   iterator erase_after(iterator pos) noexcept;
-
-  /**
-   * @brief Erase elements in range (pos, last).
-   * @param pos Iterator to position before first element to erase
-   * @param last Iterator to position after last element to erase
-   * @return Iterator to last (the element after the erased range)
-   * @time O(n) where n is the number of elements erased
-   */
   iterator erase_after(iterator pos, iterator last) noexcept;
 };
 
-/**
- * @brief Forward iterator for offset_list.
- *
- * This iterator provides read-only traversal through the linked list.
- * It maintains a pointer to the parent list for segment-to-pointer conversion,
- * a pointer to the current node, and a flag indicating if this is a
- * before_begin iterator.
- */
 template <is_nothrow T, homogenous allocator_type>
 class offset_list<T, allocator_type>::iterator {
   friend class offset_list;
@@ -329,7 +205,6 @@ public:
 
   iterator &operator++() noexcept {
     if (_is_before_begin) {
-      // Incrementing before_begin yields begin()
       _is_before_begin = false;
       _current = static_cast<node *>(_list->_head);
     } else {
@@ -350,14 +225,7 @@ public:
            _is_before_begin == other._is_before_begin;
   }
 
-  bool operator!=(const iterator &other) const noexcept {
-    return !(*this == other);
-  }
-
-  // Allow access to underlying node for advanced operations
   node *get_node() const noexcept { return _current; }
-
-  // Public accessors for offset_list methods (allows inline implementations)
   bool is_before_begin() const noexcept { return _is_before_begin; }
 };
 
@@ -367,24 +235,11 @@ offset_list<T, allocator_type>::insert_after(iterator pos,
                                              auto &&value) noexcept
   requires std::constructible_from<T, decltype(value)>
 {
-  // Allocate memory for new node (returns allocator::pointer_type)
-  auto mem_result = storage::_allocator->allocate_block();
-  if (!mem_result) {
-    return end();
-  }
-  auto mem = *mem_result;
-
-  // Convert allocator's pointer to raw pointer for placement new
-  void *raw_mem = static_cast<void *>(mem);
-
-  // Construct node in allocated memory
-  node *new_node = new (raw_mem) node(std::forward<decltype(value)>(value));
-
-  // Create node_pointer - cache will hit alloc_cache (O(1))
+  auto mem = unwrap(storage::_allocator->allocate_block());
+  node *new_node = new (mem) node{nullptr, T(exforward(value))};
   node_pointer new_node_ptr(new_node);
 
   if (pos._is_before_begin) {
-    // Inserting after before_begin means inserting at head
     new_node_ptr->next = _head;
     _head = new_node_ptr;
   } else {
@@ -400,22 +255,8 @@ template <is_nothrow T, homogenous allocator_type>
 typename offset_list<T, allocator_type>::iterator
 offset_list<T, allocator_type>::emplace_after(iterator pos,
                                               auto &&...args) noexcept {
-  // Allocate memory for new node (returns allocator::pointer_type)
-  auto mem_result = storage::_allocator->allocate_block();
-  if (!mem_result) {
-    return end();
-  }
-  auto mem = *mem_result;
-
-  // Convert allocator's pointer to raw pointer for placement new
-  void *raw_mem = static_cast<void *>(mem);
-
-  // Construct node in allocated memory
-  node *new_node = static_cast<node *>(raw_mem);
-  new_node->next = nullptr;
-  new (&new_node->value) T(std::forward<decltype(args)>(args)...);
-
-  // Create node_pointer - cache will hit alloc_cache (O(1))
+  auto mem = unwrap(storage::_allocator->allocate_block());
+  node *new_node = new (mem) node{nullptr, T(exforward(args)...)};
   node_pointer new_node_ptr(new_node);
 
   if (pos._is_before_begin) {
@@ -437,39 +278,27 @@ offset_list<T, allocator_type>::erase_after(iterator pos) noexcept {
   node *to_erase;
 
   if (pos._is_before_begin) {
-    // Erasing after before_begin means erasing head
-    if (_head == nullptr)
+    if (_head == nullptr) {
       return end();
+    }
 
     to_erase_ptr = _head;
     to_erase = static_cast<node *>(_head);
     _head = to_erase->next;
   } else {
     fatal(pos._current == nullptr, "Cannot erase_after at end() position");
-    if (pos._current->next == nullptr)
+    if (pos._current->next == nullptr) {
       return end();
+    }
 
     to_erase_ptr = pos._current->next;
     to_erase = static_cast<node *>(pos._current->next);
     pos._current->next = to_erase->next;
   }
 
-  // Extract segment_id for efficient deallocation
-  auto segment_id = to_erase_ptr.get_segment_id();
-
-  // Save next node before destruction
   node *next_node = static_cast<node *>(to_erase->next);
-
-  // Destroy the node
   to_erase->~node();
-
-  // Convert to allocator's pointer type for deallocation
-  using block_type = typename allocator_type::block_type;
-  auto *block_raw = reinterpret_cast<block_type *>(to_erase);
-  typename allocator_type::pointer_type alloc_ptr(segment_id, block_raw);
-
-  // Deallocate block
-  storage::_allocator->deallocate_block(alloc_ptr);
+  storage::_allocator->deallocate_block(to_erase_ptr);
 
   return iterator(this, next_node, false);
 }
@@ -480,7 +309,6 @@ offset_list<T, allocator_type>::erase_after(iterator pos,
                                             iterator last) noexcept {
   iterator current = pos;
   ++current;
-
   while (current != last) {
     current = erase_after(pos);
   }

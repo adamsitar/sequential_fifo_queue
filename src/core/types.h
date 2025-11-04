@@ -6,6 +6,8 @@
 #include <cstdint>
 #include <memory_resource>
 
+#define exforward(x) std::forward<decltype(x)>(x)
+
 template <std::size_t N> constexpr auto smallest_type() {
   constexpr std::size_t numBits = std::bit_width(N - 1);
   if constexpr (numBits <= 8) {

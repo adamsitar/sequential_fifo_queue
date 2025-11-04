@@ -3,9 +3,6 @@
 #include <local_buffer.h>
 #include <offset_list.h>
 
-// Realistic allocator stack:
-// - local_buffer: Top-level, dispenses large blocks (2KB)
-// - dynamic_buffer: Breaks large blocks into small chunks (64B) for list nodes
 constexpr size_t top_level_block_size = 256;
 constexpr size_t top_level_block_count = 8;
 constexpr size_t node_block_size = 8;
@@ -24,16 +21,11 @@ protected:
     allocator = new test_allocator(&top_allocator);
     list = new test_list(allocator);
   }
-
   void TearDown() override {
     delete list;
     delete allocator;
   }
 };
-
-// ============================================================================
-// Basic Operations
-// ============================================================================
 
 TEST_F(OffsetListTest, InitiallyEmpty) {
   EXPECT_TRUE(list->is_empty());
@@ -75,10 +67,6 @@ TEST_F(OffsetListTest, FrontOnEmptyListFails) {
   EXPECT_FALSE(result.has_value());
 }
 
-// ============================================================================
-// Multiple Elements & Order
-// ============================================================================
-
 TEST_F(OffsetListTest, PushFrontMaintainsLIFOOrder) {
   list->push_front(1);
   list->push_front(2);
@@ -102,20 +90,12 @@ TEST_F(OffsetListTest, SizeTracksCorrectly) {
   EXPECT_EQ(list->size(), 0);
 }
 
-// ============================================================================
-// Emplace Operations
-// ============================================================================
-
 TEST_F(OffsetListTest, EmplaceFrontConstructsInPlace) {
   auto result = list->emplace_front(42);
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(list->size(), 1);
   EXPECT_EQ(*list->front().value(), 42);
 }
-
-// ============================================================================
-// Clear Operation
-// ============================================================================
 
 TEST_F(OffsetListTest, ClearEmptiesList) {
   list->push_front(1);
@@ -127,10 +107,6 @@ TEST_F(OffsetListTest, ClearEmptiesList) {
   EXPECT_TRUE(list->is_empty());
   EXPECT_EQ(list->size(), 0);
 }
-
-// ============================================================================
-// Iterator Operations
-// ============================================================================
 
 TEST_F(OffsetListTest, BeginEqualsEndForEmptyList) {
   EXPECT_EQ(list->begin(), list->end());
@@ -162,10 +138,6 @@ TEST_F(OffsetListTest, BeforeBeginIterator) {
   EXPECT_EQ(it, list->begin());
   EXPECT_EQ(*it, 1);
 }
-
-// ============================================================================
-// Insert After Operations
-// ============================================================================
 
 TEST_F(OffsetListTest, InsertAfterBeforeBegin) {
   auto it = list->insert_after(list->before_begin(), 42);
@@ -200,10 +172,6 @@ TEST_F(OffsetListTest, EmplaceAfterBeforeBegin) {
   EXPECT_EQ(*it, 42);
   EXPECT_EQ(list->size(), 1);
 }
-
-// ============================================================================
-// Erase After Operations
-// ============================================================================
 
 TEST_F(OffsetListTest, EraseAfterBeforeBeginRemovesFirst) {
   list->push_front(2);
@@ -255,10 +223,6 @@ TEST_F(OffsetListTest, EraseAfterRange) {
   ++it;
   EXPECT_EQ(*it, 4);
 }
-
-// ============================================================================
-// Allocator Stress Test
-// ============================================================================
 
 TEST_F(OffsetListTest, CanHandleMultipleAllocations) {
   const int num_elements = 10;

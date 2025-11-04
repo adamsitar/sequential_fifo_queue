@@ -32,10 +32,6 @@ public:
       std::is_void_v<tag>, void *,
       basic_thin_ptr<typename freelist_type::block_type, offset_type, tag>>;
 
-  // ============================================================================
-  // Homogeneous Allocator Interface
-  // ============================================================================
-
   result<pointer_type> allocate_block() {
     auto raw_block = TRY(_list.pop());
     if constexpr (std::is_void_v<tag>) {
@@ -63,15 +59,11 @@ public:
 
   void reset() { _list.reset(); }
 
-  [[nodiscard]] std::size_t size() const noexcept { return _list.size(); };
+  std::size_t size() const noexcept { return _list.size(); };
 
-  [[nodiscard]] std::byte *base() const noexcept {
+  std::byte *base() const noexcept {
     return const_cast<std::byte *>(_list.base());
   }
-
-  // ============================================================================
-  // Standard Interface
-  // ============================================================================
 
   unique_local_buffer() {
     if constexpr (!std::is_void_v<tag>) {
@@ -134,22 +126,21 @@ private:
     }
   }
 
-  [[nodiscard]] bool
+  bool
   do_is_equal(const std::pmr::memory_resource &other) const noexcept override {
     return this == &other;
   }
 };
 
-template <size_t BlockSize, size_t NumBlocks, typename Tag>
-  requires nonzero_power_of_two<BlockSize, NumBlocks>
+template <size_t block_size, size_t block_count, typename tag>
+  requires nonzero_power_of_two<block_size, block_count>
 std::pmr::memory_resource
-    *unique_local_buffer<BlockSize, NumBlocks, Tag>::_upstream = nullptr;
+    *unique_local_buffer<block_size, block_count, tag>::_upstream = nullptr;
 
 #define local_buffer(block_size, block_count)                                  \
   unique_local_buffer<block_size, block_count, decltype([] {})>
 
 static_assert(homogenous<local_buffer(256, 8)>,
               "local_buffer must implement homogeneous_allocator concept");
-
 static_assert(provides_offset<local_buffer(256, 8)>,
               "local_buffer must provide offset-based addressing");

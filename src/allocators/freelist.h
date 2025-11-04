@@ -13,10 +13,6 @@ union block_storage {
   std::array<std::byte, size> data;
 };
 
-// ============================================================================
-// Freelist Storage - Non-unique type with reference-based API
-// ============================================================================
-
 template <std::size_t block_size, std::size_t block_count>
   requires nonzero_power_of_two<block_size, block_count>
 class freelist_storage {
@@ -74,10 +70,6 @@ public:
         reinterpret_cast<std::uintptr_t>(_storage.data() + _storage.size());
     return elem_addr >= base_addr && elem_addr < end_addr;
   }
-
-  // ============================================================================
-  // Freelist Operations (reference-based API for external metadata)
-  // ============================================================================
 
   void reset(offset_type &head, offset_type &count) {
     head = null_offset;

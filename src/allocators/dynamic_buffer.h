@@ -159,9 +159,6 @@ public:
     return "not owned";
   }
 
-  // ============================================================================
-  // Standard interface
-  // ============================================================================
   unique_dynamic_buffer(upstream_t *upstream) : _upstream(upstream) {
     unwrap(storage::register_buffer(this));
   }
@@ -181,9 +178,6 @@ public:
   unique_dynamic_buffer(unique_dynamic_buffer &&) = delete;
   unique_dynamic_buffer &operator=(unique_dynamic_buffer &&) = delete;
 
-  // ============================================================================
-  // Homogeneous interface
-  // ============================================================================
   result<pointer_type> allocate_block() noexcept {
     if (_alloc_cache < _high_water_mark) {
       auto block_result = _segments[_alloc_cache].try_allocate();

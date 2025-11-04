@@ -5,7 +5,6 @@
 #include <functional>
 #include <log.h>
 #include <source_location>
-#include <tuple>
 #include <utility>
 
 template <typename T = void> struct result : public std::expected<T, error> {

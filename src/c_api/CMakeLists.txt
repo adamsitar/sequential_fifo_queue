@@ -1,19 +1,15 @@
 set(LIB_NAME queue_c_api)
 
-# Build as a static library (compiled, not INTERFACE)
-# This contains the PIMPL implementation that hides C++ templates
 add_library(${LIB_NAME} STATIC
   queue_c_api.cpp
 )
 
-# Public include directory for C header
 target_include_directories(
   ${LIB_NAME}
   PUBLIC
   ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-# Private include directories for C++ implementation
 target_include_directories(
   ${LIB_NAME}
   PRIVATE
@@ -22,7 +18,6 @@ target_include_directories(
   ${CMAKE_SOURCE_DIR}/src/datastructures
 )
 
-# Link against required libraries
 target_link_libraries(
   ${LIB_NAME}
   PRIVATE
@@ -31,7 +26,6 @@ target_link_libraries(
   datastructures
 )
 
-# C++ standard library (needed for template instantiation)
 target_link_libraries(
   ${LIB_NAME}
   PRIVATE
