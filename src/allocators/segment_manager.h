@@ -77,15 +77,12 @@ public:
   // provides_uniform_blocks
   static constexpr size_t block_size = block_size_v;
   static constexpr size_t block_align = block_size_v;
-
-  // Limit max_segments to ensure the containing structure fits in upstream
-  // block We need: sizeof(segment_metadata) * N + overhead <
-  // upstream_block_size Reserve ~6 bytes for: high_water_mark (1) + next
-  // pointer (1-2) + padding
+  // reserve for high_water_mark(1) + next pointer (1-2) + padding (0)
+  static constexpr size_t reserve = 4;
   static constexpr size_t max_segments =
-      (upstream_t::block_size - 4) / sizeof(segment_metadata);
+      (upstream_t::block_size - reserve) / sizeof(segment_metadata);
   static_assert(max_segments > 0,
-                "Upstream blocks too small for segment_manager");
+                "Upstream block size too small for segment_manager");
   static constexpr size_t max_block_count = blocks_per_segment * max_segments;
   static constexpr size_t total_size_v = block_size * max_block_count;
 
@@ -94,11 +91,8 @@ public:
   std::array<segment_metadata, max_segments> _segments{};
 
   segment_manager() = default;
-
-  // Destructor doesn't deallocate - owner must call cleanup() first
   ~segment_manager() = default;
 
-  // Manual cleanup method - must be called before destruction
   void cleanup(upstream_t *upstream) noexcept {
     for (auto &segment : std::span(_segments.data(), _high_water_mark)) {
       if (segment.is_valid()) {
@@ -118,9 +112,7 @@ public:
   size_t available_count() const noexcept {
     size_t total = 0;
     for (size_t i = 0; i < _high_water_mark; ++i) {
-      if (_segments[i].is_valid()) {
-        total += _segments[i].freelist_count;
-      }
+      if (_segments[i].is_valid()) { total += _segments[i].freelist_count; }
     }
     return total;
   }

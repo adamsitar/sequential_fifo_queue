@@ -10,6 +10,16 @@
       "stopOnEntry": false,
       "cwd": "${workspaceFolder}",
       "terminal": "integrated"
+    },
+    {
+      "name": "Datastructure tests",
+      "type": "codelldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/linux_debug/src/datastructures/datastructures_test",
+      "args": [],
+      "stopOnEntry": false,
+      "cwd": "${workspaceFolder}",
+      "terminal": "integrated"
     }
   ]
 }

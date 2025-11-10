@@ -8,7 +8,7 @@ constexpr size_t top_level_block_count = 8;
 constexpr size_t node_block_size = 16;
 using top_level_allocator = local_buffer(top_level_block_size,
                                          top_level_block_count);
-using test_allocator = growing_pool(node_block_size, top_level_allocator);
+using test_allocator = growing_pool(node_block_size, 8, top_level_allocator);
 using test_list = offset_list<int, test_allocator>;
 
 class OffsetListTest : public ::testing::Test {
@@ -110,6 +110,7 @@ TEST_F(OffsetListTest, IteratorTraversesElements) {
 
   std::vector<int> values;
   for (auto it = list.begin(); it != list.end(); ++it) {
+    std::println("{}", *it);
     values.push_back(*it);
   }
 
@@ -216,15 +217,16 @@ TEST_F(OffsetListTest, EraseAfterRange) {
 }
 
 TEST_F(OffsetListTest, CanHandleMultipleAllocations) {
-  const int num_elements = 10;
+  const int num_elements = test_allocator::max_block_count - 2;
+  // const int num_elements = 4;
   for (int i = 0; i < num_elements; ++i) {
+    std::println("pushing i: {}", i);
     auto result = list.push_front(i);
     ASSERT_TRUE(result.has_value()) << "Failed to allocate element " << i;
   }
 
   EXPECT_EQ(list.size(), num_elements);
 
-  // Verify all elements
   int expected = num_elements - 1;
   for (auto it = list.begin(); it != list.end(); ++it, --expected) {
     EXPECT_EQ(*it, expected);

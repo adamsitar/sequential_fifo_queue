@@ -13,35 +13,37 @@
 // Growing pool allocator - unlimited capacity via linked list of
 // segment_managers. Each segment_manager has a fixed capacity (~4 segments),
 // but the pool can allocate new managers on demand, until upstream exhaustion.
-template <size_t block_size_v, homogenous upstream_t, typename tag = void>
+template <size_t block_size_v, size_t max_manager_count_v,
+          homogenous upstream_t, typename tag = void>
   requires is_power_of_two<block_size_v>
 class unique_growing_pool : public std::pmr::memory_resource {
 public:
   using manager_type = segment_manager<block_size_v, upstream_t>;
   using block_type = typename manager_type::block_type;
 
-  static constexpr size_t max_managers = upstream_t::max_block_count;
-  static constexpr size_t offset_bits =
-      std::bit_width(manager_type::blocks_per_segment - 1);
-  static constexpr size_t segment_bits =
-      std::bit_width(manager_type::max_segments - 1);
-  static constexpr size_t manager_bits = std::bit_width(max_managers - 1);
-
-  static_assert(offset_bits > 0, "offset_bits must be at least 1");
-  static_assert(segment_bits > 0, "segment_bits must be at least 1");
-  static_assert(manager_bits > 0, "manager_bits must be at least 1");
-
-  // Pointer type with compile-time optimized bit width
-  using pointer_type = basic_growing_pool_ptr<block_type, offset_bits,
-                                              segment_bits, manager_bits, tag>;
+  static constexpr size_t max_managers = max_manager_count_v;
+  // static constexpr size_t max_managers = upstream_t::max_block_count;
 
   // provides_uniform_blocks
   static constexpr size_t max_block_count =
       manager_type::max_block_count * max_managers;
+  static constexpr size_t total_size = block_size_v * max_block_count;
   static constexpr size_t block_size = block_size_v;
   static constexpr size_t block_align = block_size_v;
-  static constexpr size_t total_size = block_size * max_block_count;
   using unique_tag = tag;
+
+  using pointer_type =
+      basic_growing_pool_ptr<block_type, manager_type::blocks_per_segment,
+                             manager_type::max_segments, max_managers, tag>;
+
+  // Bit widths are now calculated in the pointer type, expose them here for convenience
+  static constexpr size_t offset_bits = pointer_type::offset_bits;
+  static constexpr size_t segment_bits = pointer_type::segment_bits;
+  static constexpr size_t manager_bits = pointer_type::manager_bits;
+
+  static_assert(offset_bits > 0, "offset_bits must be at least 1");
+  static_assert(segment_bits > 0, "segment_bits must be at least 1");
+  static_assert(manager_bits > 0, "manager_bits must be at least 1");
 
 private:
   struct manager_node {
@@ -295,9 +297,8 @@ private:
 };
 
 // Macro for creating unique growing_pool instances
-#define growing_pool(block_size, upstream_type)                                \
-  unique_growing_pool<block_size, upstream_type, decltype([] {})>
+#define growing_pool(block_size, manager_count, upstream_type)                 \
+  unique_growing_pool<block_size, manager_count, upstream_type, decltype([] {})>
 
-static_assert(
-    homogenous<growing_pool(8, local_buffer(16, 128))>,
-    "growing_pool must implement homogenous concept");
+static_assert(homogenous<growing_pool(8, 8, local_buffer(16, 128))>,
+              "growing_pool must implement homogenous concept");

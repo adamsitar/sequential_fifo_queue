@@ -24,6 +24,8 @@ Checks:
 - -cert-dcl51-cpp
 - -cert-dcl37-c
 - -bugprone-reserved-identifier
+- -cppcoreguidelines-pro-bounds-pointer-arithmetic
+- -cppcoreguidelines-pro-bounds-constant-array-index
 UseColor: true
 WarningsAsErrors: '' # '*' would treat all warnings as errors
 # restrict checks to src, avoid noise from third-party libraries

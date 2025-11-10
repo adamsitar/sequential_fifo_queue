@@ -2,29 +2,9 @@
 #include <cstddef>
 #include <iterators/container_interface.h>
 #include <iterators/iterator_facade.h>
+#include <print>
 
-// ============================================================================
-// Intrusive Singly-Linked List
-// ============================================================================
-// Header-only intrusive linked list for managing pre-allocated nodes.
-//
-// Requirements:
-//   - NodePtr must be a pointer-like type (raw pointer or custom pointer)
-//   - *NodePtr must have a 'next' field of type NodePtr
-//   - NodePtr must support: ==, !=, nullptr comparison, operator*
-//
-// Key properties:
-//   - Does NOT allocate - caller provides nodes
-//   - Caller must deallocate nodes after removal
-//   - Works with custom pointer types (thin_ptr, segmented_ptr, etc.)
-//   - Zero overhead - just pointer manipulation
-//
-// Use cases:
-//   - Allocator internal structures (growing_pool)
-//   - Kernel-style lists
-//   - Memory-constrained environments
-// ============================================================================
-
+// intrusive linked list for managing pre-allocated nodes.
 template <typename node_ptr>
 concept intrusive_node = requires(node_ptr ptr) {
   { ptr->next } -> std::convertible_to<node_ptr>;
@@ -42,49 +22,76 @@ public:
   using size_type = std::size_t;
 
 private:
-  node_ptr _head{nullptr};
+  node_ptr _head = nullptr;
+  node_ptr _tail = nullptr;
   size_type _count{0};
 
 public:
   intrusive_slist() = default;
-
   // Non-copyable, non-movable (contains external node pointers)
   intrusive_slist(const intrusive_slist &) = delete;
   intrusive_slist &operator=(const intrusive_slist &) = delete;
   intrusive_slist(intrusive_slist &&) = delete;
   intrusive_slist &operator=(intrusive_slist &&) = delete;
-
   ~intrusive_slist() = default;
-
-  // ========================================================================
-  // Modifiers
-  // ========================================================================
 
   void push_front(node_ptr node) noexcept {
     node->next = _head;
     _head = node;
+    if (_tail == nullptr) { _tail = node; }
     ++_count;
   }
 
   node_ptr pop_front() noexcept {
     auto old_head = _head;
     _head = _head->next;
+    if (_head == nullptr) { _tail = nullptr; }
     --_count;
-    return old_head; // Caller must deallocate
+    return old_head;
   }
 
   void clear() noexcept {
     _head = nullptr;
+    _tail = nullptr;
     _count = 0;
   }
 
-  // ========================================================================
-  // Accessors
-  // ========================================================================
-
   node_ptr front() const noexcept { return _head; }
+  node_ptr back() const noexcept { return _tail; }
   bool empty() const noexcept { return _head == nullptr; }
   size_type size() const noexcept { return _count; }
+
+  // Tail-based operations
+  void push_back(node_ptr node) noexcept {
+    node->next = nullptr;
+    if (_tail == nullptr) {
+      _head = _tail = node;
+    } else {
+      _tail->next = node;
+      _tail = node;
+    }
+    ++_count;
+  }
+
+  // O(n) - must traverse to find node before tail
+  node_ptr pop_back() noexcept {
+    if (_head == _tail) {
+      auto old = _tail;
+      _head = _tail = nullptr;
+      --_count;
+      return old;
+    }
+
+    auto current = _head;
+    while (current->next != _tail) {
+      current = current->next;
+    }
+    auto old_tail = _tail;
+    current->next = nullptr;
+    _tail = current;
+    --_count;
+    return old_tail;
+  }
 
   // O(n) indexed access - walks the list
   node_ptr get(size_type index) const noexcept {
@@ -98,10 +105,11 @@ public:
   }
 
   class iterator : public forward_iterator_facade<value_type> {
-    node_ptr _current;
+    friend class intrusive_slist;
+    node_ptr _current = nullptr; // Use = instead of {} in default constructor
 
   public:
-    iterator() : _current(nullptr) {}
+    iterator() = default;
     explicit iterator(node_ptr p) : _current(p) {}
 
     value_type &dereference() const noexcept { return *_current; }
@@ -112,8 +120,11 @@ public:
     node_ptr node() const noexcept { return _current; }
   };
 
-  iterator begin() const noexcept { return iterator{_head}; }
-  iterator end() const noexcept { return iterator{nullptr}; }
+  iterator begin() const noexcept { return iterator(_head); }
+  iterator end() const noexcept {
+    node_ptr null_ptr = nullptr; // Force explicit construction with = syntax
+    return iterator(null_ptr);
+  }
 
   void insert_after(iterator pos, node_ptr node) noexcept {
     if (pos.node() == nullptr) {
@@ -121,6 +132,7 @@ public:
     } else {
       node->next = pos.node()->next;
       pos.node()->next = node;
+      if (pos.node() == _tail) { _tail = node; }
       ++_count;
     }
   }
@@ -132,6 +144,7 @@ public:
 
     auto to_erase = pos.node()->next;
     pos.node()->next = to_erase->next;
+    if (to_erase == _tail) { _tail = pos.node(); }
     --_count;
     return to_erase; // caller must deallocate
   }
@@ -155,6 +168,7 @@ public:
     while (current != nullptr && current->next != nullptr) {
       if (current->next == node) {
         current->next = node->next;
+        if (node == _tail) { _tail = current; }
         --_count;
         return true;
       }

@@ -41,14 +41,11 @@ A two-level addressing scheme that replaces traditional 8-byte pointers with 1-2
 **Local Buffer**
 The top-level allocator that manages a fixed pool of uniformly-sized memory blocks. All memory in the system is allocated from this single contiguous buffer. Block size and count are configured at compile time.
 
-**Dynamic Buffer**
-A mid-level allocator that receives large blocks from the local buffer and subdivides them into smaller blocks on demand. Manages its own metadata within the allocated blocks, avoiding external storage overhead. Multiple dynamic buffers can share a single local buffer.
-
 **Growing Pool**
-An allocator that dynamically grows by allocating new segment managers on demand. Provides effectively unlimited capacity (within upstream limits) while maintaining compact pointer representations using growing_pool_ptr.
+Allocator that dynamically grows by allocating new segment managers on demand. Provides effectively unlimited capacity (within upstream limits) while maintaining compact pointer representations using growing_pool_ptr.
 
 **Segment Manager**
-Manages a fixed number of memory segments, each subdivided into uniform blocks. Provides the foundation for growing_pool's scalability.
+Manages a fixed number of memory segments, each subdivided into uniform blocks. Provides the foundation for growing_pool's scalability, is only for interal use by the `growing_pool`.
 
 ### Static Allocator Pattern
 

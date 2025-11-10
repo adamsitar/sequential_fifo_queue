@@ -45,7 +45,7 @@ public:
   auto &operator--(this auto &self)
     requires(!std::is_void_v<T>)
   {
-    self.advance_impl(-static_cast<std::ptrdiff_t>(sizeof(T)));
+    self.advance_impl(-sizeof(T));
     return self;
   }
 
