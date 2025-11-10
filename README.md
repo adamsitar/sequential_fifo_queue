@@ -1,5 +1,7 @@
 # Sequential FIFO Queue
 
+> ⚠️This readme may not be entirely in sync with the state of the project, as the project WIP
+
 This project implements a queue datastructure specialized for extremely memory-constrained environments. The design prioritizes minimal memory overhead while maintaining standard queue semantics and RAII principles.
 
 ## Project Structure
@@ -89,17 +91,16 @@ class my_iterator : public forward_iterator_facade<T> {
 **Documentation:**
 
 - Iterator Library: `src/iterators/README.md`
-- Performance Guide: `docs/PRECOMPILED_HEADERS.md`
 
 ---
 
 ## Memory Layout
 
-All metadata is stored within allocated blocks. There is no external bookkeeping data. The local buffer contains:
+All metadata is stored within allocated blocks. The local buffer contains:
 
 - Ring buffer storage blocks (raw element storage)
 - Offset list node blocks (node metadata + ring_buffer control structures)
-- Dynamic buffer metadata blocks (segment tracking and free lists)
+- Growing pool metadata blocks (segment tracking and free lists)
 
 The entire queue system operates within a fixed memory budget determined by the local buffer configuration. No heap allocations occur outside this controlled pool.
 
@@ -130,14 +131,6 @@ cmake --preset=linux_debug -DITERATORS_USE_PCH=ON
 cmake --build --preset=linux_debug
 ```
 
-**Why use PCH:**
-
-- First build: ~2-3s overhead (PCH generation)
-- Subsequent builds: 4-6x faster (50,000+ lines of templates parsed once)
-- Best for: CI builds, clean rebuilds, release builds
-
-**See:** `docs/PRECOMPILED_HEADERS.md` for detailed usage
-
 ### Running Tests
 
 ```bash
@@ -167,9 +160,9 @@ The CMake configuration includes a directive to generate a compile database, whi
 
 **Iterator Boilerplate Reduction:**
 
-- offset_list: 50 lines → 12 lines (76% reduction)
-- ring_buffer: 85 lines → 15 lines (82% reduction)
-- intrusive_slist: 45 lines → 12 lines (73% reduction)
+- offset_list: 50 lines → 12 lines
+- ring_buffer: 85 lines → 15 lines
+- intrusive_slist: 45 lines → 12 lines
 - **Total**: ~265 lines eliminated across 4 containers
 
 **Memory Overhead:**
@@ -185,7 +178,7 @@ The CMake configuration includes a directive to generate a compile database, whi
 - **Compiler**: C++23 support required
   - GCC 13+ or Clang 16+ recommended
 - **CMake**: 3.16+ (for precompiled headers support)
-- **Platform**: Linux (tested), Windows/macOS (should work, untested)
+- **Platform**: Linux (tested)
 
 ---
 
@@ -196,25 +189,3 @@ The CMake configuration includes a directive to generate a compile database, whi
 3. **Modern C++**: Leverage C++23 features (deducing this, concepts, std::expected)
 4. **Embedded-friendly**: No exceptions, no heap allocations outside controlled pool
 5. **Reusable components**: Iterator library designed as standalone, redistributable module
-
----
-
-## Future Work
-
-**Iterator Library Enhancements:**
-
-- Iterator adaptors: filter_iterator, transform_iterator, zip_iterator
-- C++20 ranges integration
-- Formal concept definitions
-
-**Allocator Improvements:**
-
-- Multi-manager support for growing_pool (currently limited to single manager)
-- Allocator statistics and diagnostics
-- Thread-safe variants
-
----
-
-## License
-
-See project root for license information.
