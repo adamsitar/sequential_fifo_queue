@@ -1,2 +1,4 @@
 BasedOnStyle: LLVM
 ColumnLimit: 80
+AllowShortBlocksOnASingleLine: Always
+AllowShortIfStatementsOnASingleLine: AllIfsAndElse

@@ -1,13 +1,13 @@
 #pragma once
-#include "result.h"
 #include <cassert>
 #include <cstddef>
 #include <cstdio>
 #include <freelist.h>
 #include <local_buffer.h>
 #include <memory_resource>
-#include <segmented_ptr.h>
-#include <thin_ptr.h>
+#include <pointers/segmented_ptr.h>
+#include <pointers/thin_ptr.h>
+#include <result/result.h>
 #include <types.h>
 
 // Allocator whose job is to take in blocks from upstream, and dispense blocks
@@ -15,21 +15,21 @@
 // The size of this type should be equal to the upstream block size.
 // Metadata about allocations is stored within class as a member, therefore this
 // class can only give out a fixed max amount of blocks.
-template <size_t block_size, homogenous upstream_t, typename tag = void>
-  requires is_power_of_two<block_size>
+template <size_t block_size_t, homogenous upstream_t, typename tag = void>
+  requires is_power_of_two<block_size_t>
 class unique_dynamic_buffer : public std::pmr::memory_resource {
   static constexpr size_t blocks_per_segment =
-      upstream_t::block_size_v / block_size;
+      upstream_t::block_size / block_size_t;
 
-  static_assert(upstream_t::block_size_v >= block_size,
+  static_assert(upstream_t::block_size >= block_size_t,
                 "Upstream block size must be >= requested block size");
   static_assert(
-      upstream_t::block_size_v % block_size == 0,
+      upstream_t::block_size % block_size_t == 0,
       "Upstream block size must be a multiple of requested block size");
   static_assert(blocks_per_segment > 0,
                 "At least one block must fit in upstream block");
 
-  using freelist_type = freelist_storage<block_size, blocks_per_segment>;
+  using freelist_type = freelist_storage<block_size_t, blocks_per_segment>;
   using freelist_offset_type = typename freelist_type::offset_type;
 
 private:
@@ -48,9 +48,7 @@ private:
     }
 
     bool owns_block(const block_type *block) const noexcept {
-      if (!is_valid()) {
-        return false;
-      }
+      if (!is_valid()) { return false; }
 
       auto *freelist = reinterpret_cast<const freelist_type *>(
           static_cast<void *>(segment_ptr));
@@ -62,16 +60,16 @@ private:
 
       auto *freelist =
           reinterpret_cast<freelist_type *>(static_cast<void *>(segment_ptr));
-      return TRY(freelist->pop(freelist_head, freelist_count));
+      return ok(freelist->pop(freelist_head, freelist_count));
     }
 
     result<> deallocate(block_type *block, upstream_t *upstream) noexcept {
       auto *freelist =
           reinterpret_cast<freelist_type *>(static_cast<void *>(segment_ptr));
-      TRY(freelist->push(*block, freelist_head, freelist_count));
+      ok(freelist->push(*block, freelist_head, freelist_count));
 
       if (is_empty()) {
-        TRY(upstream->deallocate_block(segment_ptr));
+        ok(upstream->deallocate_block(segment_ptr));
         segment_ptr = nullptr;
         return {};
       }
@@ -79,7 +77,7 @@ private:
     }
   };
 
-  static constexpr size_t max_segment_count{upstream_t::block_size_v /
+  static constexpr size_t max_segment_count{upstream_t::block_size /
                                             sizeof(segment_metadata)};
   upstream_t *_upstream;
   // segment count, never decreased
@@ -99,11 +97,11 @@ public:
   std::size_t size() const noexcept {};
 
   // provides_uniform_blocks
-  static constexpr size_t block_size_v = block_size;
-  static constexpr size_t block_align_v = block_size;
-  static constexpr size_t block_count_v =
+  static constexpr size_t block_size = block_size;
+  static constexpr size_t block_align = block_size;
+  static constexpr size_t max_block_count =
       blocks_per_segment * max_segment_count; // total max capacity
-  static constexpr size_t total_size_v = block_size * block_count_v;
+  static constexpr size_t total_size = block_size * max_block_count;
   using block_type = freelist_type::block_type;
 
   // provides_offset
@@ -136,7 +134,7 @@ public:
       }
     }
 
-    // Try lookup cache (temporal locality - recently looked up blocks)
+    // Try lookup cache (temporal locality - recently looked ok blocks)
     if (_lookup_cache < _high_water_mark && _lookup_cache != _alloc_cache) {
       if (_segments[_lookup_cache].is_valid() &&
           _segments[_lookup_cache].owns_block(block)) {
@@ -181,15 +179,11 @@ public:
   result<pointer_type> allocate_block() noexcept {
     if (_alloc_cache < _high_water_mark) {
       auto block_result = _segments[_alloc_cache].try_allocate();
-      if (block_result) {
-        return pointer_type(_alloc_cache, *block_result);
-      }
+      if (block_result) { return pointer_type(_alloc_cache, *block_result); }
     }
 
     for (auto i = 0; i < _high_water_mark; ++i) {
-      if (i == _alloc_cache) {
-        continue;
-      }
+      if (i == _alloc_cache) { continue; }
 
       auto block_result = _segments[i].try_allocate();
       if (block_result) {
@@ -212,46 +206,41 @@ public:
 
     auto *block = static_cast<block_type *>(static_cast<void *>(ptr));
 
-    TRY(metadata.deallocate(block, _upstream));
+    ok(metadata.deallocate(block, _upstream));
     return {};
   };
 
 private:
   result<size_t> find_free_slot() const noexcept {
     for (size_t i = 0; i < max_segment_count; ++i) {
-      if (!_segments[i].is_valid()) {
-        return i;
-      }
+      if (!_segments[i].is_valid()) { return i; }
     }
     return "segment exhausted";
   }
 
   result<pointer_type> allocate_new_segment() noexcept {
-    size_t slot = TRY(find_free_slot());
+    size_t slot = ok(find_free_slot());
 
-    auto upstream_block = TRY(_upstream->allocate_block());
+    auto upstream_block = ok(_upstream->allocate_block());
     typename upstream_t::pointer_type upstream_ptr = upstream_block;
 
     void *placement_ptr = static_cast<void *>(upstream_ptr);
-    auto *freelist = new (placement_ptr) freelist_type();
 
-    freelist->reset(_segments[slot].freelist_head,
-                    _segments[slot].freelist_count);
+    // Construct freelist with metadata references - constructor automatically
+    // initializes
+    auto *freelist = new (placement_ptr) freelist_type(
+        _segments[slot].freelist_head, _segments[slot].freelist_count);
 
     _segments[slot].segment_ptr = upstream_ptr;
     _alloc_cache = slot;
 
-    if (slot >= _high_water_mark) {
-      _high_water_mark = slot + 1;
-    }
+    if (slot >= _high_water_mark) { _high_water_mark = slot + 1; }
 
     return allocate_block();
   }
 
   void *do_allocate(size_t bytes, size_t alignment) override {
-    if (bytes > block_size || alignment > block_size) {
-      return nullptr;
-    }
+    if (bytes > block_size || alignment > block_size) { return nullptr; }
 
     return to_nullptr(allocate_block());
   }

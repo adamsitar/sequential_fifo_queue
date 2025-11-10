@@ -1,25 +1,27 @@
 #pragma once
-#include "result.h"
 #include <cassert>
 #include <cstddef>
 #include <cstring>
 #include <freelist.h>
 #include <memory_resource>
-#include <thin_ptr.h>
+#include <pointers/thin_ptr.h>
+#include <print>
+#include <result/result.h>
 #include <types.h>
 
 // Manages a fixed number of fixed-size memory blocks in a local array/freelist.
-template <size_t block_size, size_t block_count, typename tag = void>
-  requires nonzero_power_of_two<block_size, block_count>
+// Always uses thin pointers for type safety and memory efficiency.
+template <size_t block_size_t, size_t block_count_t, typename tag>
+  requires nonzero_power_of_two<block_size_t, block_count_t>
 class unique_local_buffer : public std::pmr::memory_resource {
 public:
-  static constexpr size_t block_size_v = block_size;
-  static constexpr size_t block_align_v = block_size;
-  static constexpr size_t block_count_v = block_count;
-  static constexpr size_t total_size_v = block_size * block_count;
+  static constexpr size_t block_size = block_size_t;
+  static constexpr size_t block_align = block_size_t;
+  static constexpr size_t max_block_count = block_count_t;
+  static constexpr size_t total_size = block_size_t * block_count_t;
 
 private:
-  using freelist_type = freelist<block_size, block_count, tag>;
+  using freelist_type = freelist<block_size, block_count_t, tag>;
   freelist_type _list{};
   static std::pmr::memory_resource *_upstream;
 
@@ -27,18 +29,11 @@ public:
   using unique_tag = tag;
   using block_type = freelist_type::block_type;
   using offset_type = freelist_type::offset_type;
-
-  using pointer_type = std::conditional_t<
-      std::is_void_v<tag>, void *,
-      basic_thin_ptr<typename freelist_type::block_type, offset_type, tag>>;
+  using pointer_type = basic_thin_ptr<block_type, offset_type, tag>;
 
   result<pointer_type> allocate_block() {
-    auto raw_block = TRY(_list.pop());
-    if constexpr (std::is_void_v<tag>) {
-      return static_cast<void *>(raw_block);
-    } else {
-      return pointer_type(raw_block);
-    }
+    auto &block = ok(_list.pop());
+    return pointer_type(&block);
   }
 
   result<> deallocate_block(pointer_type ptr) {
@@ -51,31 +46,18 @@ public:
     if (!res) {
       // Block doesn't belong to this allocator, return to upstream
       if (_upstream != nullptr) {
-        _upstream->deallocate(raw, block_size_v, block_align_v);
+        _upstream->deallocate(raw, block_size, block_align);
       }
     }
     return {};
   }
 
   void reset() { _list.reset(); }
-
   std::size_t size() const noexcept { return _list.size(); };
+  std::byte *base() const noexcept { return _list.base(); }
 
-  std::byte *base() const noexcept {
-    return const_cast<std::byte *>(_list.base());
-  }
-
-  unique_local_buffer() {
-    if constexpr (!std::is_void_v<tag>) {
-      pointer_type::set_base(base());
-    }
-  }
-
-  ~unique_local_buffer() override {
-    if constexpr (!std::is_void_v<tag>) {
-      pointer_type::set_base(nullptr);
-    }
-  }
+  unique_local_buffer() { pointer_type::set_base(base()); }
+  ~unique_local_buffer() override { pointer_type::set_base(nullptr); }
 
   static void set_upstream(std::pmr::memory_resource *upstream) noexcept {
     _upstream = upstream;
@@ -94,9 +76,7 @@ private:
     auto fits_within_a_block = size <= block_size;
     auto can_be_aligned = alignment <= block_size;
     if (!fits_within_a_block || !can_be_aligned) {
-      if (_upstream == nullptr) {
-        return nullptr;
-      }
+      if (_upstream == nullptr) { return nullptr; }
       return _upstream->allocate(size, alignment);
     }
 
@@ -112,18 +92,11 @@ private:
     auto fits_within_a_block = size <= block_size;
     auto can_be_aligned = alignment <= block_size;
     if (!fits_within_a_block || !can_be_aligned) {
-      if (_upstream != nullptr) {
-        _upstream->deallocate(ptr, size, alignment);
-      }
+      if (_upstream != nullptr) { _upstream->deallocate(ptr, size, alignment); }
       return;
     }
 
-    // Convert void* to pointer_type and delegate to primary interface
-    if constexpr (std::is_void_v<tag>) {
-      unwrap(deallocate_block(ptr));
-    } else {
-      unwrap(deallocate_block(pointer_type(ptr)));
-    }
+    deallocate_block(ptr);
   }
 
   bool

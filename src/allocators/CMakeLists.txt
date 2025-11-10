@@ -12,14 +12,16 @@ target_link_libraries(
   ${LIB_NAME}
   INTERFACE
   core
+  pointers
 )
 
-# test executable
+#### test executable
 add_executable(
   ${LIB_NAME}_test
   "local_buffer.t.cpp"
   "freelist.t.cpp"
-  "dynamic_buffer.t.cpp"
+  # "dynamic_buffer.t.cpp"
+  "growing_pool.t.cpp"
   # ${TEST_FILES}
 )
 
@@ -29,5 +31,5 @@ target_link_libraries(
   ${LIB_NAME}
   GTest::gtest_main
 )
-
+target_precompile_headers(${LIB_NAME}_test REUSE_FROM pch_base)
 gtest_discover_tests(${LIB_NAME}_test)

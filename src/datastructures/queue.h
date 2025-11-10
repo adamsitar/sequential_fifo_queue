@@ -1,6 +1,6 @@
 #pragma once
 #include <offset_list.h>
-#include <result.h>
+#include <result/result.h>
 #include <ring_buffer.h>
 #include <types.h>
 
@@ -29,14 +29,14 @@ private:
   offset_list<ring_buffer_node, dynamic_buffer_type> _list;
 
 public:
-  static_assert(sizeof(ring_buffer_node) <= dynamic_buffer_type::block_size_v,
+  static_assert(sizeof(ring_buffer_node) <= dynamic_buffer_type::block_size,
                 "DynamicBuffer block_size too small for ring_buffer_node");
-  static_assert(dynamic_buffer_type::block_size_v % alignof(ring_buffer_node) ==
+  static_assert(dynamic_buffer_type::block_size % alignof(ring_buffer_node) ==
                     0,
                 "DynamicBuffer block_size must be multiple of ring_buffer_node "
                 "alignment");
-  static_assert(ring_buffer_type::storage_bytes_v <=
-                    local_buffer_type::block_size_v,
+  static_assert(ring_buffer_type::storage_bytes <=
+                    local_buffer_type::block_size,
                 "LocalBuffer block_size too small for ring_buffer storage");
 
   explicit queue(local_buffer_type *local_alloc,
@@ -62,11 +62,11 @@ public:
     requires std::constructible_from<T, U>
   result<> push(U &&value) noexcept {
     if (_list.is_empty() ||
-        const_cast<ring_buffer_node *>(TRY(_list.front()))->buffer.is_full()) {
-      TRY(allocate_new_ring_buffer());
+        const_cast<ring_buffer_node *>(ok(_list.front()))->buffer.is_full()) {
+      ok(allocate_new_ring_buffer());
     }
 
-    const_cast<ring_buffer_node *>(TRY(_list.front()))
+    const_cast<ring_buffer_node *>(ok(_list.front()))
         ->buffer.push(std::forward<U>(value));
     return {};
   }
@@ -75,11 +75,11 @@ public:
     requires std::constructible_from<T, Args...>
   result<> emplace(Args &&...args) noexcept {
     if (_list.is_empty() ||
-        const_cast<ring_buffer_node *>(TRY(_list.front()))->buffer.is_full()) {
-      TRY(allocate_new_ring_buffer());
+        const_cast<ring_buffer_node *>(ok(_list.front()))->buffer.is_full()) {
+      ok(allocate_new_ring_buffer());
     }
 
-    const_cast<ring_buffer_node *>(TRY(_list.front()))
+    const_cast<ring_buffer_node *>(ok(_list.front()))
         ->buffer.emplace(std::forward<Args>(args)...);
     return {};
   }
@@ -87,12 +87,10 @@ public:
   result<T> pop() noexcept {
     fail(empty(), "Cannot pop from empty queue");
 
-    auto *pop_node = const_cast<ring_buffer_node *>(TRY(_list.back()));
-    T value = TRY(pop_node->buffer.pop());
+    auto *pop_node = const_cast<ring_buffer_node *>(ok(_list.back()));
+    T value = ok(pop_node->buffer.pop());
 
-    if (pop_node->buffer.empty()) {
-      deallocate_back_ring_buffer();
-    }
+    if (pop_node->buffer.empty()) { deallocate_back_ring_buffer(); }
 
     return value;
   }
@@ -101,12 +99,12 @@ public:
 
   result<const T *> front() const noexcept {
     fail(empty(), "front() called on empty queue");
-    return &TRY(_list.back())->buffer.front();
+    return &ok(_list.back())->buffer.front();
   }
 
   result<const T *> back() const noexcept {
     fail(empty(), "back() called on empty queue");
-    return &TRY(_list.front())->buffer.back();
+    return &ok(_list.front())->buffer.back();
   }
 
   bool empty() const noexcept { return _list.is_empty(); }
@@ -122,14 +120,14 @@ public:
 
 private:
   result<> allocate_new_ring_buffer() noexcept {
-    TRY(_list.emplace_front(storage::_local_alloc));
+    ok(_list.emplace_front(storage::_local_alloc));
     return {};
   }
 
   result<> deallocate_back_ring_buffer() noexcept {
     fail(_list.is_empty(), "Cannot deallocate from empty list");
 
-    TRY(_list.pop_back());
+    ok(_list.erase_back());
     return {};
   }
 };

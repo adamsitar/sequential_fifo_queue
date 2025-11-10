@@ -1,0 +1,15 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Allocator tests",
+      "type": "codelldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/linux_debug/src/allocators/allocators_test",
+      "args": [],
+      "stopOnEntry": false,
+      "cwd": "${workspaceFolder}",
+      "terminal": "integrated"
+    }
+  ]
+}

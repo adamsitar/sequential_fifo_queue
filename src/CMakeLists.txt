@@ -1,4 +1,11 @@
-# Add subdirectories - core must come first (provides shared types/concepts)
+# Add subdirectories - result and iterators have no dependencies
+# pointers depends on result
+# core depends on result and iterators
+# pch is built first to create precompiled headers for reuse
+add_subdirectory(pch)
+add_subdirectory(result)
+add_subdirectory(iterators)
+add_subdirectory(pointers)
 add_subdirectory(core)
 add_subdirectory(allocators)
 add_subdirectory(datastructures)
@@ -21,3 +28,6 @@ target_link_libraries(
   allocators
   datastructures
 )
+
+# Reuse precompiled headers from pch_base
+target_precompile_headers(main REUSE_FROM pch_base)

@@ -1,11 +1,13 @@
 #pragma once
 #include <cstdlib>
-#include <error.h>
 #include <expected>
 #include <functional>
-#include <log.h>
+#include <result/error.h>
+#include <result/log.h>
 #include <source_location>
 #include <utility>
+
+#define exforward(x) ::std::forward<decltype(x)>(x)
 
 template <typename T = void> struct result : public std::expected<T, error> {
   using base = std::expected<T, error>;
@@ -22,25 +24,88 @@ template <typename T = void> struct result : public std::expected<T, error> {
   }
 };
 
-auto try_unwrap_impl(auto &&result, std::false_type x) {
+template <typename T>
+struct result<T &> : public std::expected<std::reference_wrapper<T>, error> {
+  using base = std::expected<std::reference_wrapper<T>, error>;
+  using base::base;
+
+  constexpr result(T &ref) noexcept : base(std::ref(ref)) {}
+  constexpr result(error e) noexcept : base(std::unexpected(e)) {}
+
+  result(const char *msg,
+         std::source_location loc = std::source_location::current()) noexcept
+      : base(std::unexpected(error::generic)) {
+    log::header("[fail] Unconditional");
+    log::location(loc);
+    log::message(msg);
+    log::error_code(error::generic);
+  }
+
+  constexpr T &value(this auto &&self) {
+    return exforward(self).base::value().get();
+  }
+  constexpr decltype(auto) operator*(this auto &&self) {
+    return exforward(self).value();
+  }
+  constexpr T *operator->() { return &value(); }
+  constexpr const T *operator->() const { return &value(); }
+};
+
+decltype(auto) try_unwrap_impl(auto &&result, std::false_type x) {
   return std::forward<decltype(result)>(result).value();
 }
 
-void try_unwrap_impl(auto &&result, std::true_type x) {}
+struct void_result_tag {};
+void_result_tag try_unwrap_impl(auto &&result, std::true_type x) {
+  return void_result_tag{};
+}
 
-template <typename T> auto try_unwrap(T &&result) {
+template <typename T> decltype(auto) try_unwrap(T &&result) {
   using value_type = typename std::decay_t<T>::value_type;
   return try_unwrap_impl(std::forward<T>(result), std::is_void<value_type>{});
 }
 
-#define TRY(expr)                                                              \
-  ({                                                                           \
+// wrapper to tag pointers created from references
+template <typename T> struct ptr_from_ref {
+  T *ptr;
+};
+
+// return tagged pointer for references, pass through everything else
+template <typename T> auto ok_unwrap_helper(T &&value) {
+  using raw_t = std::remove_reference_t<T>;
+  if constexpr (std::is_reference_v<T> && !std::is_pointer_v<raw_t>) {
+    return ptr_from_ref<raw_t>{&value};
+  } else {
+    return std::forward<T>(value);
+  }
+}
+
+// Handle void results by passing through the tag
+inline void_result_tag ok_unwrap_helper(void_result_tag tag) { return tag; }
+
+template <typename> struct is_ptr_from_ref : std::false_type {};
+template <typename T>
+struct is_ptr_from_ref<ptr_from_ref<T>> : std::true_type {};
+
+// dereference tagged pointers, pass through everything else
+template <typename T> decltype(auto) ok_deref_helper(T &&value) {
+  if constexpr (is_ptr_from_ref<T>::value) {
+    return *value.ptr;
+  } else {
+    return std::forward<T>(value);
+  }
+}
+
+// Convert void result tag back to void
+inline void ok_deref_helper(void_result_tag) {}
+
+// possible names: ok, test, ret, flow, get, do, run, ok, out
+#define ok(expr)                                                               \
+  ok_deref_helper(({                                                           \
     auto &&__result = (expr);                                                  \
-    if (!__result) {                                                           \
-      return std::unexpected(__result.error());                                \
-    }                                                                          \
-    try_unwrap(std::forward<decltype(__result)>(__result));                    \
-  })
+    if (!__result) { return std::unexpected(__result.error()); }               \
+    ok_unwrap_helper(try_unwrap(exforward(__result)));                         \
+  }))
 
 __attribute__((always_inline)) inline void fatal_error(
     const char *expr, error err,
@@ -56,9 +121,7 @@ __attribute__((always_inline)) inline void fatal_error(
 #define unwrap(expr)                                                           \
   ({                                                                           \
     auto &&__result = (expr);                                                  \
-    if (!__result.has_value()) {                                               \
-      fatal_error(#expr, __result.error());                                    \
-    }                                                                          \
+    if (!__result.has_value()) { fatal_error(#expr, __result.error()); }       \
     try_unwrap(std::forward<decltype(__result)>(__result));                    \
   })
 
@@ -119,15 +182,11 @@ public:
       log::location(_loc);
       log::condition(_condition);
       log::error_code(_error_code);
-      if (_message) {
-        log::message(_message);
-      }
+      if (_message) { log::message(_message); }
       // if (_has_context && _context_logger) {
       //   _context_logger();
       // }
-      if (_log_stacktrace) {
-        log::stacktrace(2);
-      }
+      if (_log_stacktrace) { log::stacktrace(2); }
     }
     return std::unexpected(_error_code);
   }
@@ -160,16 +219,12 @@ __attribute__((always_inline)) inline void fatal_assertion(
 
 #define __fatal_1(condition)                                                   \
   ({                                                                           \
-    if (condition) [[unlikely]] {                                              \
-      fatal_assertion(#condition, #condition);                                 \
-    }                                                                          \
+    if (condition) [[unlikely]] { fatal_assertion(#condition, #condition); }   \
   })
 
 #define __fatal_2(condition, message)                                          \
   ({                                                                           \
-    if (condition) [[unlikely]] {                                              \
-      fatal_assertion(#condition, message);                                    \
-    }                                                                          \
+    if (condition) [[unlikely]] { fatal_assertion(#condition, message); }      \
   })
 
 #define __fatal_GET_MACRO(_1, _2, NAME, ...) NAME
@@ -181,15 +236,11 @@ template <typename T> constexpr void *to_nullptr(result<T *> res) noexcept {
 }
 
 template <typename T> constexpr void *to_nullptr(result<T &> res) noexcept {
-  if (!res) {
-    return nullptr;
-  }
+  if (!res) { return nullptr; }
   return &res.value();
 }
 
 template <typename T> constexpr void *to_nullptr(result<T> res) noexcept {
-  if (!res) {
-    return nullptr;
-  }
+  if (!res) { return nullptr; }
   return static_cast<void *>(res.value());
 }

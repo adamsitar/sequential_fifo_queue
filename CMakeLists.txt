@@ -11,6 +11,10 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_COLOR_MAKEFILE ON)
 set(CMAKE_COLOR_DIAGNOSTICS ON)
 
+
+# Precompiled Headers for iterator library
+option(ITERATORS_USE_PCH "Enable precompiled headers for iterators library" OFF)
+
 add_definitions(-w)
 
 # hardening
@@ -28,6 +32,9 @@ add_compile_options(
   $<$<CONFIG:Release>:-ftrivial-auto-var-init=zero>
   $<$<CONFIG:Release>:-fcf-protection=full>
   $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:GNU>>:-fstack-clash-protection>
+
+  # Build profiling - generates .json trace files
+  -ftime-trace
 )
 add_link_options(-pie)
 

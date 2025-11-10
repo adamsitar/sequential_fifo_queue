@@ -1,6 +1,8 @@
 #pragma once
 #include <compare>
 #include <cstddef>
+#include <iterators/container_interface.h>
+#include <iterators/iterator_facade.h>
 #include <types.h>
 
 template <typename allocator_type> struct ring_buffer_allocator_storage {
@@ -9,7 +11,9 @@ template <typename allocator_type> struct ring_buffer_allocator_storage {
 
 // Fixed-capacity circular buffer
 template <is_nothrow T, std::size_t count, homogenous allocator_type>
-class ring_buffer {
+class ring_buffer
+    : public bidirectional_container_iterator_interface<
+          ring_buffer<T, count, allocator_type>> {
 public:
   using value_type = T;
   using size_type = smallest_t<count>;
@@ -67,7 +71,8 @@ public:
     }
   }
 
-  ring_buffer(const ring_buffer &other, allocator_type *alloc = nullptr)
+  ring_buffer(const ring_buffer &other,
+              allocator_type *alloc = nullptr) noexcept
       : _head(other._head), _tail(other._tail), _free(other._free) {
     // Update static allocator if provided
     if (alloc != nullptr) {
@@ -155,110 +160,44 @@ public:
   size_type get_free() const noexcept { return _free; }
 
   class iterator;
-  using const_iterator = std::const_iterator<iterator>;
-  using reverse_iterator = std::reverse_iterator<iterator>;
-  using const_reverse_iterator = std::const_iterator<reverse_iterator>;
 
   iterator begin() noexcept { return iterator(this, _head); }
   iterator end() noexcept { return iterator(this, _tail); }
-  const_iterator cbegin() const noexcept { return const_iterator(begin()); }
-  const_iterator cend() const noexcept { return const_iterator(end()); }
-  reverse_iterator rbegin() noexcept { return reverse_iterator(end()); }
-  reverse_iterator rend() noexcept { return reverse_iterator(begin()); }
-  const_reverse_iterator crbegin() const noexcept {
-    return const_reverse_iterator(rbegin());
-  }
-  const_reverse_iterator crend() const noexcept {
-    return const_reverse_iterator(rend());
-  }
+  // cbegin/cend/rbegin/rend/crbegin/crend provided by container_iterator_interface
 };
 
 // Random access iterator for ring_buffer.
 template <is_nothrow T, std::size_t count, homogenous allocator_type>
-class ring_buffer<T, count, allocator_type>::iterator {
+class ring_buffer<T, count, allocator_type>::iterator
+    : public random_access_iterator_facade<T> {
 public:
+  using base = random_access_iterator_facade<T>;
+  using typename base::difference_type;
   using size_type = typename ring_buffer::size_type;
-  using iterator_category = std::random_access_iterator_tag;
-  using value_type = T;
-  using difference_type = std::ptrdiff_t;
-  using pointer_type = T *;
-  using reference = T &;
 
   iterator() noexcept = default;
 
   iterator(ring_buffer *buffer, size_type pos) noexcept
       : _buffer(buffer), _pos(pos) {}
 
-  reference operator*() const noexcept {
-    return *(_buffer->storage_ptr() + _pos);
-  }
+  // CRTP primitives for random_access_iterator_facade
+  T &dereference() const noexcept { return *(_buffer->storage_ptr() + _pos); }
 
-  pointer_type operator->() const noexcept {
-    return _buffer->storage_ptr() + _pos;
-  }
-
-  iterator &operator++() noexcept {
-    _pos = (_pos + 1) % count;
-    return *this;
-  }
-
-  iterator operator++(int) noexcept {
-    iterator temp = *this;
-    ++(*this);
-    return temp;
-  }
-
-  iterator &operator--() noexcept {
-    _pos = (_pos == 0) ? (count - 1) : (_pos - 1);
-    return *this;
-  }
-
-  iterator operator--(int) noexcept {
-    iterator temp = *this;
-    --(*this);
-    return temp;
-  }
-
-  iterator &operator+=(difference_type n) noexcept {
+  void advance(difference_type n) noexcept {
     auto new_pos = (static_cast<difference_type>(_pos) + n);
     new_pos %= static_cast<difference_type>(count);
     if (new_pos < 0) {
       new_pos += count;
     }
     _pos = static_cast<size_type>(new_pos);
-    return *this;
   }
 
-  iterator operator+(difference_type n) const noexcept {
-    iterator temp = *this;
-    return temp += n;
+  difference_type distance_to(const iterator &other) const noexcept {
+    return other.rank() - rank();
   }
 
-  friend iterator operator+(difference_type n, const iterator &it) noexcept {
-    return it + n;
-  }
-
-  iterator &operator-=(difference_type n) noexcept { return *this += -n; }
-
-  iterator operator-(difference_type n) const noexcept {
-    iterator temp = *this;
-    return temp -= n;
-  }
-
-  difference_type operator-(const iterator &other) const noexcept {
-    return rank() - other.rank();
-  }
-
-  reference operator[](difference_type n) const noexcept {
-    return *(*this + n);
-  }
-
-  constexpr bool operator==(const iterator &other) const noexcept {
+  bool equals(const iterator &other) const noexcept {
     return _pos == other._pos && _buffer == other._buffer;
-  }
-
-  auto operator<=>(const iterator &other) const noexcept {
-    return rank() <=> other.rank();
   }
 
 private:

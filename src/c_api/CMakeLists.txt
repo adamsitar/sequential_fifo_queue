@@ -1,4 +1,5 @@
-set(LIB_NAME queue_c_api)
+set(LIB_NAME c_api)
+file(GLOB TEST_FILES CONFIGURE_DEPENDS "*.t.cpp")
 
 add_library(${LIB_NAME} STATIC
   queue_c_api.cpp
@@ -24,11 +25,21 @@ target_link_libraries(
   core
   allocators
   datastructures
+  result
 )
 
-target_link_libraries(
-  ${LIB_NAME}
-  PRIVATE
-  $<$<CXX_COMPILER_ID:GNU>:stdc++exp>
-  $<$<CXX_COMPILER_ID:Clang>:stdc++exp>
+target_precompile_headers(${LIB_NAME} REUSE_FROM pch_base)
+
+#### test executable
+add_executable(
+  ${LIB_NAME}_test
+  ${TEST_FILES}
 )
+find_package(GTest REQUIRED)
+target_link_libraries(
+  ${LIB_NAME}_test PRIVATE
+  ${LIB_NAME}
+  GTest::gtest_main
+)
+target_precompile_headers(${LIB_NAME}_test REUSE_FROM pch_base)
+gtest_discover_tests(${LIB_NAME}_test)
