@@ -2,6 +2,7 @@
 #include <bit>
 #include <cassert>
 #include <cstddef>
+#include <intrusive_slist.h>
 #include <local_buffer.h>
 #include <memory_resource>
 #include <pointers/growing_pool_ptr.h>
@@ -11,8 +12,7 @@
 #include <types.h>
 
 // Growing pool allocator - unlimited capacity via linked list of
-// segment_managers. Each segment_manager has a fixed capacity (~4 segments),
-// but the pool can allocate new managers on demand, until upstream exhaustion.
+// segment_managers.
 template <size_t block_size_v, size_t max_manager_count_v,
           homogenous upstream_t, typename tag = void>
   requires is_power_of_two<block_size_v>
@@ -33,10 +33,9 @@ public:
   using unique_tag = tag;
 
   using pointer_type =
-      basic_growing_pool_ptr<block_type, manager_type::blocks_per_segment,
-                             manager_type::max_segments, max_managers, tag>;
+      basic_segmented_ptr<block_type, manager_type::blocks_per_segment,
+                          manager_type::max_segments, max_managers, tag>;
 
-  // Bit widths are now calculated in the pointer type, expose them here for convenience
   static constexpr size_t offset_bits = pointer_type::offset_bits;
   static constexpr size_t segment_bits = pointer_type::segment_bits;
   static constexpr size_t manager_bits = pointer_type::manager_bits;
@@ -46,21 +45,39 @@ public:
   static_assert(manager_bits > 0, "manager_bits must be at least 1");
 
 private:
+  struct manager_node;
+  using manager_node_ptr =
+      typename upstream_t::pointer_type::template rebind<manager_node>;
+
   struct manager_node {
     manager_type manager{};
-    typename upstream_t::pointer_type next{nullptr};
+    manager_node_ptr next{nullptr};
+
+    // Padding to ensure size exactly matches upstream block for pointer
+    // arithmetic
+    static constexpr size_t base_size =
+        sizeof(manager_type) + sizeof(manager_node_ptr);
+    static constexpr size_t padding_size =
+        (base_size < upstream_t::block_size)
+            ? (upstream_t::block_size - base_size)
+            : 0;
+
+    [[no_unique_address]] std::conditional_t<
+        (padding_size > 0), std::array<std::byte, padding_size>,
+        std::array<std::byte, 0>> _padding{};
   };
 
-  static_assert(sizeof(manager_node) <= upstream_t::block_size,
-                "manager_node must fit within upstream block");
+  static_assert(sizeof(manager_node) == upstream_t::block_size,
+                "manager_node must exactly match upstream block_size for "
+                "pointer arithmetic");
 
   upstream_t *_upstream;
-  typename upstream_t::pointer_type _head{nullptr};
+  intrusive_slist<manager_node_ptr> _managers;
   smallest_t<max_managers> _manager_count{0};
   smallest_t<max_managers> _alloc_cache{0};
   mutable smallest_t<max_managers> _lookup_cache{0};
 
-  using storage = growing_pool_storage<tag>;
+  using storage = segmented_ptr_storage<tag>;
 
 public:
   explicit unique_growing_pool(upstream_t *upstream) : _upstream(upstream) {
@@ -72,17 +89,15 @@ public:
     storage::unregister_pool();
 
     // Destroy all manager nodes
-    auto curr = _head;
-    while (curr != nullptr) {
-      auto *curr_node = static_cast<manager_node *>(static_cast<void *>(curr));
-      auto next = curr_node->next;
+    while (!_managers.empty()) {
+      manager_node_ptr curr = _managers.pop_front();
       // Cleanup segments before destroying manager
-      curr_node->manager.cleanup(_upstream);
+      curr->manager.cleanup(_upstream);
       // Manually destroy manager
-      curr_node->manager.~manager_type();
+      curr->manager.~manager_type();
       // Deallocate the node memory back to upstream
-      unwrap(_upstream->deallocate_block(curr));
-      curr = next;
+      typename upstream_t::pointer_type upstream_ptr(static_cast<void *>(curr));
+      unwrap(_upstream->deallocate_block(upstream_ptr));
     }
   }
 
@@ -104,22 +119,19 @@ public:
     }
 
     // Scan existing managers
-    auto curr = _head;
     size_t id = 0;
-    while (curr != nullptr) {
-      auto *curr_node = static_cast<manager_node *>(static_cast<void *>(curr));
+    for (auto it = _managers.begin(); it != _managers.end(); ++it, ++id) {
+      manager_node_ptr curr = it.node();
       if (id != _alloc_cache) {
-        auto block_result = curr_node->manager.try_allocate(_upstream);
+        auto block_result = curr->manager.try_allocate(_upstream);
         // Check if successful without propagating errors
         if (block_result) {
           _alloc_cache = id;
           storage::update_alloc_cache(id);
-          return encode_pointer(id, &curr_node->manager, *block_result);
+          return encode_pointer(id, &curr->manager, *block_result);
         }
         // If failed, continue to next manager
       }
-      curr = curr_node->next;
-      ++id;
     }
 
     return allocate_new_manager();
@@ -145,11 +157,9 @@ public:
 
   // Reset all managers to initial state
   void reset() noexcept {
-    auto curr = _head;
-    while (curr != nullptr) {
-      auto *curr_node = static_cast<manager_node *>(static_cast<void *>(curr));
-      curr_node->manager.reset(_upstream);
-      curr = curr_node->next;
+    for (auto it = _managers.begin(); it != _managers.end(); ++it) {
+      manager_node_ptr curr = it.node();
+      curr->manager.reset(_upstream);
     }
     _alloc_cache = 0;
     _lookup_cache = 0;
@@ -158,11 +168,9 @@ public:
   // Get total number of available blocks across all managers
   std::size_t size() const noexcept {
     std::size_t total = 0;
-    auto curr = _head;
-    while (curr != nullptr) {
-      auto *curr_node = static_cast<manager_node *>(static_cast<void *>(curr));
-      total += curr_node->manager.available_count();
-      curr = curr_node->next;
+    for (auto it = _managers.begin(); it != _managers.end(); ++it) {
+      manager_node_ptr curr = it.node();
+      total += curr->manager.available_count();
     }
     return total;
   }
@@ -171,15 +179,12 @@ public:
   result<manager_type *> get_manager_by_id(size_t id) noexcept {
     fail(id >= _manager_count, "ID greater than total count of managers");
 
-    auto curr = _head;
-
     // List is prepended, so reverse order
     size_t current_id = _manager_count - 1;
 
-    while (curr != nullptr) {
-      auto *curr_node = static_cast<manager_node *>(static_cast<void *>(curr));
-      if (current_id == id) { return &curr_node->manager; }
-      curr = curr_node->next;
+    for (auto it = _managers.begin(); it != _managers.end(); ++it) {
+      manager_node_ptr curr = it.node();
+      if (current_id == id) { return &curr->manager; }
       if (current_id == 0) break;
       --current_id;
     }
@@ -211,18 +216,16 @@ public:
     }
 
     // Linear scan (cold path)
-    auto curr = _head;
     size_t id = _manager_count;
-    while (curr != nullptr) {
-      auto *curr_node = static_cast<manager_node *>(static_cast<void *>(curr));
+    for (auto it = _managers.begin(); it != _managers.end(); ++it) {
+      manager_node_ptr curr = it.node();
       --id;
       if (id != _alloc_cache && id != _lookup_cache) {
-        if (curr_node->manager.owns(block)) {
+        if (curr->manager.owns(block)) {
           _lookup_cache = id;
           return id;
         }
       }
-      curr = curr_node->next;
     }
 
     return "pointer not owned";
@@ -256,16 +259,15 @@ private:
   result<pointer_type> allocate_new_manager() noexcept {
     fail(_manager_count >= max_managers, "manager limit reached");
 
-    // Allocate a block from upstream for the manager_node
     auto upstream_block = ok(_upstream->allocate_block());
     void *node_ptr = static_cast<void *>(upstream_block);
 
     // Placement-new the manager_node (default constructed)
     auto *new_node = new (node_ptr) manager_node();
 
-    // Prepend to linked list (O(1))
-    new_node->next = _head;
-    _head = upstream_block; // Store the upstream pointer, not raw pointer
+    // Convert upstream pointer to manager_node_ptr and prepend to list
+    manager_node_ptr node_ptr_typed(new_node);
+    _managers.push_front(node_ptr_typed);
 
     size_t new_id = _manager_count++;
     _alloc_cache = new_id;

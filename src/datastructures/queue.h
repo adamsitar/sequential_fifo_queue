@@ -35,7 +35,7 @@ public:
                     0,
                 "DynamicBuffer block_size must be multiple of ring_buffer_node "
                 "alignment");
-  static_assert(ring_buffer_type::storage_bytes <=
+  static_assert(ring_buffer_type::storage_bytes_v <=
                     local_buffer_type::block_size,
                 "LocalBuffer block_size too small for ring_buffer storage");
 

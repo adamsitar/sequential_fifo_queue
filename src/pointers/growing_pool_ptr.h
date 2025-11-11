@@ -12,8 +12,8 @@
 // Bit-packed pointer for growing_pool allocator.
 template <typename T, size_t offset_count_v, size_t segment_count_v,
           size_t manager_count_v, typename unique_tag>
-class basic_growing_pool_ptr : public pointer_operations<T> {
-  using storage = growing_pool_storage<unique_tag>;
+class basic_segmented_ptr : public pointer_operations<T> {
+  using storage = segmented_ptr_storage<unique_tag>;
 
 public:
   // Calculate bits needed to represent indices (count - 1)
@@ -47,7 +47,7 @@ private:
   } _id;
 
   template <typename, size_t, size_t, size_t, typename>
-  friend class basic_growing_pool_ptr;
+  friend class basic_segmented_ptr;
   friend class pointer_operations<T>;
 
   T *resolve_impl() const {
@@ -154,13 +154,13 @@ private:
 public:
   // Rebind this pointer type to a different pointed-to type
   template <typename U>
-  using rebind = basic_growing_pool_ptr<U, offset_count_v, segment_count_v,
-                                        manager_count_v, unique_tag>;
+  using rebind = basic_segmented_ptr<U, offset_count_v, segment_count_v,
+                                     manager_count_v, unique_tag>;
 
-  constexpr basic_growing_pool_ptr() { set_null_impl(); }
-  constexpr basic_growing_pool_ptr(std::nullptr_t) { set_null_impl(); }
+  constexpr basic_segmented_ptr() { set_null_impl(); }
+  constexpr basic_segmented_ptr(std::nullptr_t) { set_null_impl(); }
 
-  basic_growing_pool_ptr(size_t manager_id, size_t segment_id, size_t offset) {
+  basic_segmented_ptr(size_t manager_id, size_t segment_id, size_t offset) {
     // Max valid values: a field with N bits can store 0 to (2^N - 1)
 
     fatal(manager_id > max_manager_index, "manager_id out of range or null");
@@ -172,7 +172,7 @@ public:
     _id.offset = static_cast<underlying_type>(offset);
   }
 
-  explicit basic_growing_pool_ptr(void *ptr) {
+  explicit basic_segmented_ptr(void *ptr) {
     if (ptr == nullptr) {
       set_null_impl();
       return;
@@ -208,26 +208,26 @@ public:
       return;
     }
 
-    *this = basic_growing_pool_ptr(manager_id, segment_id, *offset_result);
+    *this = basic_segmented_ptr(manager_id, segment_id, *offset_result);
   }
 
-  explicit basic_growing_pool_ptr(T *ptr)
+  explicit basic_segmented_ptr(T *ptr)
     requires(!std::is_void_v<T>)
-      : basic_growing_pool_ptr(static_cast<void *>(ptr)) {}
+      : basic_segmented_ptr(static_cast<void *>(ptr)) {}
 
   template <typename U>
     requires(!std::same_as<T, U>)
-  basic_growing_pool_ptr(
-      const basic_growing_pool_ptr<U, offset_count_v, segment_count_v,
-                                   manager_count_v, unique_tag> &other)
-      : basic_growing_pool_ptr(static_cast<void *>(other.resolve_impl())) {}
+  basic_segmented_ptr(
+      const basic_segmented_ptr<U, offset_count_v, segment_count_v,
+                                manager_count_v, unique_tag> &other)
+      : basic_segmented_ptr(static_cast<void *>(other.resolve_impl())) {}
 
   template <typename U>
     requires(!std::same_as<T, U>)
-  basic_growing_pool_ptr &
-  operator=(const basic_growing_pool_ptr<U, offset_count_v, segment_count_v,
-                                         manager_count_v, unique_tag> &other) {
-    *this = basic_growing_pool_ptr(static_cast<void *>(other.resolve_impl()));
+  basic_segmented_ptr &
+  operator=(const basic_segmented_ptr<U, offset_count_v, segment_count_v,
+                                      manager_count_v, unique_tag> &other) {
+    *this = basic_segmented_ptr(static_cast<void *>(other.resolve_impl()));
     return *this;
   }
 
@@ -246,8 +246,8 @@ public:
 
   template <typename U = T>
     requires(!std::is_void_v<U> && std::same_as<U, T>)
-  static basic_growing_pool_ptr pointer_to(U &r) {
-    return basic_growing_pool_ptr(std::addressof(r));
+  static basic_segmented_ptr pointer_to(U &r) {
+    return basic_segmented_ptr(std::addressof(r));
   }
 
   static constexpr size_t storage_bits() { return total_bits; }

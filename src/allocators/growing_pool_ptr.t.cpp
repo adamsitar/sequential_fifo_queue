@@ -186,13 +186,13 @@ TEST_F(GrowingPoolPtrTest, ArithmeticDetectsUnderflow) {
   EXPECT_DEATH({ ptr -= 1; }, "pointer arithmetic underflow");
 }
 
-TEST_F(GrowingPoolPtrTest, ArithmeticDetectsCrossManagerBoundary) {
-  // Calculate total blocks per manager
-  constexpr size_t blocks_per_manager =
-      (ptr_type::max_segment_index + 1) * (ptr_type::max_offset_index + 1);
-
+TEST_F(GrowingPoolPtrTest, ArithmeticDetectsCrossPoolBoundary) {
   ptr_type ptr(0, 0, 0);
-  EXPECT_DEATH({ ptr += blocks_per_manager; }, "crossed manager boundary");
+
+  // Try to advance beyond the entire pool capacity
+  EXPECT_DEATH(
+      { ptr += pool_type::max_block_count; },
+      "beyond end of pool");
 }
 
 // ============================================================================

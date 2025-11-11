@@ -4,7 +4,7 @@
 #include <result/result.h>
 
 // Type-erased static storage for growing_pool pointer resolution.
-template <typename unique_tag> struct growing_pool_storage {
+template <typename unique_tag> struct segmented_ptr_storage {
   inline static void *_pool_instance{nullptr};
 
   inline static result<void *> (*_get_manager_fn)(void *, size_t){nullptr};
@@ -177,6 +177,6 @@ template <typename unique_tag> struct growing_pool_storage {
     fail(_pool_instance == nullptr, "pool instance is null");
 
     return ok(_compute_offset_fn(_pool_instance, manager_id, segment_id, ptr,
-                                  elem_size, is_void));
+                                 elem_size, is_void));
   }
 };

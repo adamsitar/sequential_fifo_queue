@@ -119,6 +119,7 @@ A CMake Preset for Linux is provided. The project has been tested only with the 
 cmake --preset=linux_debug
 cmake --build --preset=linux_debug --target allocators_test
 cmake --build --preset=linux_debug --target datastructures_test
+cmake --build --preset=linux_debug --target c_api
 ```
 
 ### Build with Precompiled Headers (4-6x Faster)

@@ -8,8 +8,8 @@
 #include <queue.h>
 
 using local_allocator = local_buffer(16, 128);
-using list_allocator = growing_pool(8, local_allocator);
-using queue_allocator = growing_pool(8, local_allocator);
+using list_allocator = growing_pool(8, 8, local_allocator);
+using queue_allocator = growing_pool(8, 8, local_allocator);
 using byte_queue = queue<std::byte, 16, local_allocator, list_allocator>;
 
 static local_allocator g_local_allocator;
@@ -27,7 +27,6 @@ struct queue_handle {
 
 extern "C" {
 
-// Default implementations (weak symbols allow tests to override)
 __attribute__((weak)) void on_out_of_memory(void) { abort(); }
 __attribute__((weak)) void on_illegal_operation(void) { abort(); }
 
@@ -84,25 +83,19 @@ unsigned char dequeue_byte(Q *q) {
 }
 
 bool queue_is_empty(const queue_handle *q) {
-  if (q == nullptr) {
-    return true;
-  }
+  if (q == nullptr) { return true; }
 
   return q->impl.empty();
 }
 
 size_t queue_size(const queue_handle *q) {
-  if (q == nullptr) {
-    return 0;
-  }
+  if (q == nullptr) { return 0; }
 
   return q->impl.size();
 }
 
 void queue_clear(queue_handle *q) {
-  if (q != nullptr) {
-    q->impl.clear();
-  }
+  if (q != nullptr) { q->impl.clear(); }
 }
 
 } // extern "C"
