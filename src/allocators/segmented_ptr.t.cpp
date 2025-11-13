@@ -190,9 +190,7 @@ TEST_F(GrowingPoolPtrTest, ArithmeticDetectsCrossPoolBoundary) {
   ptr_type ptr(0, 0, 0);
 
   // Try to advance beyond the entire pool capacity
-  EXPECT_DEATH(
-      { ptr += pool_type::max_block_count; },
-      "beyond end of pool");
+  EXPECT_DEATH({ ptr += pool_type::max_block_count; }, "beyond end of pool");
 }
 
 // ============================================================================

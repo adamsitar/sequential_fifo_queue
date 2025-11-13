@@ -202,7 +202,7 @@ public:
       }
     }
 
-    return "not owned";
+    return "pointer not owned by manager";
   }
 
 private:

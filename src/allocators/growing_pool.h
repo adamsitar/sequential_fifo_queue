@@ -5,8 +5,8 @@
 #include <intrusive_slist.h>
 #include <local_buffer.h>
 #include <memory_resource>
-#include <pointers/growing_pool_ptr.h>
 #include <pointers/growing_pool_storage.h>
+#include <pointers/segmented_ptr.h>
 #include <result/result.h>
 #include <segment_manager.h>
 #include <types.h>
@@ -33,8 +33,10 @@ public:
   using unique_tag = tag;
 
   using pointer_type =
-      basic_segmented_ptr<block_type, manager_type::blocks_per_segment,
+      basic_segmented_ptr<block_type, block_type, manager_type::blocks_per_segment,
                           manager_type::max_segments, max_managers, tag>;
+  static constexpr size_t pointer_size{sizeof(pointer_type)};
+  static_assert(pointer_size <= 1, "pointer size is not smaller than 1");
 
   static constexpr size_t offset_bits = pointer_type::offset_bits;
   static constexpr size_t segment_bits = pointer_type::segment_bits;
@@ -88,14 +90,10 @@ public:
   ~unique_growing_pool() override {
     storage::unregister_pool();
 
-    // Destroy all manager nodes
     while (!_managers.empty()) {
       manager_node_ptr curr = _managers.pop_front();
-      // Cleanup segments before destroying manager
       curr->manager.cleanup(_upstream);
-      // Manually destroy manager
       curr->manager.~manager_type();
-      // Deallocate the node memory back to upstream
       typename upstream_t::pointer_type upstream_ptr(static_cast<void *>(curr));
       unwrap(_upstream->deallocate_block(upstream_ptr));
     }
@@ -110,12 +108,9 @@ public:
     if (_alloc_cache < _manager_count) {
       auto manager = ok(get_manager_by_id(_alloc_cache));
       auto block_result = manager->try_allocate(_upstream);
-
-      // Check if successful without propagating errors
       if (block_result) {
         return encode_pointer(_alloc_cache, manager, *block_result);
       }
-      // If failed, fall through to try other managers or create new one
     }
 
     // Scan existing managers
@@ -124,20 +119,17 @@ public:
       manager_node_ptr curr = it.node();
       if (id != _alloc_cache) {
         auto block_result = curr->manager.try_allocate(_upstream);
-        // Check if successful without propagating errors
         if (block_result) {
           _alloc_cache = id;
           storage::update_alloc_cache(id);
           return encode_pointer(id, &curr->manager, *block_result);
         }
-        // If failed, continue to next manager
       }
     }
 
     return allocate_new_manager();
   }
 
-  // Deallocate a block
   result<> deallocate_block(pointer_type ptr) noexcept {
     fail(ptr == nullptr, "cannot deallocate null pointer");
 
@@ -149,13 +141,11 @@ public:
     auto *block = static_cast<block_type *>(static_cast<void *>(ptr));
     ok(manager->deallocate(block, _upstream));
 
-    // Optional: deallocate empty managers to reclaim memory
-    // For now, keep managers alive for simplicity
+    // TODO: deallocate empty managers to reclaim memory
 
     return {};
   }
 
-  // Reset all managers to initial state
   void reset() noexcept {
     for (auto it = _managers.begin(); it != _managers.end(); ++it) {
       manager_node_ptr curr = it.node();
@@ -235,22 +225,14 @@ private:
   // Encode a block pointer into a growing_pool_ptr
   result<pointer_type> encode_pointer(size_t manager_id, manager_type *manager,
                                       block_type *block) noexcept {
-    // Find which segment owns this block
-    auto segment_id_result =
-        manager->find_segment_for_pointer(reinterpret_cast<std::byte *>(block));
-    fail(!segment_id_result, "block not owned by manager");
-
-    size_t segment_id = *segment_id_result;
-
-    // Compute offset within segment
-    std::byte *segment_base =
-        ok(manager->get_segment_base(static_cast<uint8_t>(segment_id)));
     auto *block_ptr = reinterpret_cast<std::byte *>(block);
-
+    // Find which segment owns this block
+    auto segment_id = ok(manager->find_segment_for_pointer(block_ptr));
+    // Compute offset within segment
+    std::byte *segment_base = ok(manager->get_segment_base(segment_id));
     auto byte_offset = block_ptr - segment_base;
-    fail(byte_offset < 0, "block before segment base");
-
-    size_t offset = static_cast<size_t>(byte_offset) / block_size_v;
+    fatal(byte_offset < 0, "block before segment base");
+    size_t offset = byte_offset / block_size_v;
 
     return pointer_type(manager_id, segment_id, offset);
   }
@@ -302,5 +284,5 @@ private:
 #define growing_pool(block_size, manager_count, upstream_type)                 \
   unique_growing_pool<block_size, manager_count, upstream_type, decltype([] {})>
 
-static_assert(homogenous<growing_pool(8, 8, local_buffer(16, 128))>,
+static_assert(homogenous<growing_pool(8, 32, local_buffer(16, 128))>,
               "growing_pool must implement homogenous concept");

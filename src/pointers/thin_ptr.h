@@ -1,4 +1,5 @@
 #pragma once
+#include "pointer_operations.h"
 #include <cassert>
 #include <core/ptr_utils.h>
 #include <cstddef>
@@ -16,12 +17,13 @@ template <typename unique_tag, typename offset_type> struct thin_ptr_storage {
 };
 
 // Offset-based pointer with configurable offset size.
-template <typename T, typename offset_type, typename unique_tag = void>
+template <typename T, typename block_t, typename offset_type,
+          typename unique_tag = void>
 class basic_thin_ptr : public pointer_operations<T> {
   using storage = thin_ptr_storage<unique_tag, offset_type>;
   offset_type _offset;
 
-  template <typename, typename, typename> friend class basic_thin_ptr;
+  template <typename, typename, typename, typename> friend class basic_thin_ptr;
   friend class pointer_operations<T>;
 
   std::byte *get_base() const {
@@ -32,23 +34,20 @@ class basic_thin_ptr : public pointer_operations<T> {
   T *resolve_impl() const {
     if (_offset == offset_type::null_sentinel) { return nullptr; }
     std::byte *base = get_base();
-
-    if constexpr (std::is_void_v<T>) {
-      return reinterpret_cast<T *>(base + _offset);
-    } else {
-      return std::launder(reinterpret_cast<T *>(base + _offset * sizeof(T)));
-    }
+    return std::launder(
+        reinterpret_cast<T *>(base + _offset * sizeof(block_t)));
   }
 
   bool is_null_impl() const { return _offset == offset_type::null_sentinel; }
-  void advance_impl(std::ptrdiff_t bytes) { _offset += bytes; }
+  void advance_impl(std::ptrdiff_t elements) {
+    _offset += elements * sizeof(block_t);
+  }
   void set_null_impl() { _offset = offset_type::null_sentinel; }
   offset_type comparison_key() const { return _offset; }
 
 public:
-  // rebind pointer type to a different pointed-to type
   template <typename U>
-  using rebind = basic_thin_ptr<U, offset_type, unique_tag>;
+  using rebind = basic_thin_ptr<U, block_t, offset_type, unique_tag>;
 
   static void set_base(void *base) {
     storage::_base = static_cast<std::byte *>(base);
@@ -64,7 +63,7 @@ public:
     } else {
       auto *base = get_base();
       auto byte_offset = ptr::offset(base, ptr);
-      _offset = byte_offset / sizeof(T);
+      _offset = byte_offset / sizeof(block_t);
       fatal(_offset == offset_type::null_sentinel,
             "Pointer offset collides with null sentinel value");
     }
@@ -77,8 +76,8 @@ public:
       set_null_impl();
     } else {
       std::byte *base = get_base();
-      auto *typed_ptr = static_cast<T *>(ptr);
-      _offset = ptr::element_index(base, typed_ptr);
+      auto byte_offset = ptr::offset(base, ptr);
+      _offset = byte_offset / sizeof(block_t);
       fatal(_offset == offset_type::null_sentinel,
             "Pointer offset collides with null sentinel value");
     }
@@ -88,9 +87,11 @@ public:
 };
 
 template <typename T, provides_offset allocator>
-class thin_ptr : public basic_thin_ptr<T, typename allocator::offset_type,
+class thin_ptr : public basic_thin_ptr<T, typename allocator::block_type,
+                                       typename allocator::offset_type,
                                        typename allocator::unique_tag> {
-  using base = basic_thin_ptr<T, typename allocator::offset_type,
+  using base = basic_thin_ptr<T, typename allocator::block_type,
+                              typename allocator::offset_type,
                               typename allocator::unique_tag>;
 
 public:

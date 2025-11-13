@@ -29,7 +29,7 @@ public:
   using unique_tag = tag;
   using block_type = freelist_type::block_type;
   using offset_type = freelist_type::offset_type;
-  using pointer_type = basic_thin_ptr<block_type, offset_type, tag>;
+  using pointer_type = basic_thin_ptr<block_type, block_type, offset_type, tag>;
 
   result<pointer_type> allocate_block() {
     auto &block = ok(_list.pop());

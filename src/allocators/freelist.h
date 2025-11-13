@@ -15,7 +15,7 @@ union block {
   std::array<std::byte, size> data;
 
   block(const std::array<std::byte, size> &arr) : data(arr) {}
-  block() : data{} {} // Explicitly initialize data member
+  block() : data{} {}
 };
 
 template <std::size_t block_size, std::size_t block_count>

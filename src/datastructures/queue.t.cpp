@@ -1,29 +1,31 @@
-#include <dynamic_buffer.h>
+#include "growing_pool.h"
 #include <gtest/gtest.h>
 #include <local_buffer.h>
+#include <memory>
 #include <queue.h>
 
 // Test configuration
-constexpr size_t local_buffer_size = 128;   // For ring_buffer storage
-constexpr size_t local_buffer_count = 8;    // 1KB total
-constexpr size_t dynamic_buffer_size = 64;  // For list nodes
-constexpr size_t dynamic_buffer_count = 16; // 1KB total
+constexpr size_t local_buffer_size = 16;
+constexpr size_t local_buffer_count = 8; // 1KB total
 constexpr size_t ring_buffer_capacity =
     4; // Small capacity to test multi-buffer behavior
 
 using local_alloc = local_buffer(local_buffer_size, local_buffer_count);
-using dynamic_alloc = dynamic_buffer(dynamic_buffer_size, local_alloc);
-using test_queue = queue<int, ring_buffer_capacity, local_alloc, dynamic_alloc>;
+using growing_pool_alloc = growing_pool(8, 32, local_alloc);
+using test_queue =
+    queue<int, ring_buffer_capacity, local_alloc, growing_pool_alloc>;
 
 class QueueTest : public ::testing::Test {
 protected:
-  local_alloc local_allocator;
-  dynamic_alloc list_allocator;
+  std::unique_ptr<local_alloc> local_allocator;
+  std::unique_ptr<growing_pool_alloc> list_allocator;
   test_queue *q;
 
   void SetUp() override {
-    list_allocator = dynamic_alloc(&local_allocator);
-    q = new test_queue(&local_allocator, &list_allocator);
+    local_allocator = std::make_unique<local_alloc>();
+    list_allocator =
+        std::make_unique<growing_pool_alloc>(local_allocator.get());
+    q = new test_queue(local_allocator.get(), list_allocator.get());
   }
 
   void TearDown() override { delete q; }
@@ -231,7 +233,7 @@ TEST_F(QueueTest, PushPopCycle) {
 
     // Fill again
     for (int i = 0; i < ring_buffer_capacity; ++i) {
-      q->push(cycle * 100 + ring_buffer_capacity * 2 + i);
+      q->push(static_cast<int>(cycle * 100 + ring_buffer_capacity * 2 + i));
     }
 
     // Drain completely

@@ -4,11 +4,11 @@
 #include <cstddef>
 #include <type_traits>
 
-template <typename T> class pointer_operations {
+template <typename T>
+  requires(!std::is_void_v<T>)
+class pointer_operations {
 public:
-  auto &operator*(this auto const &self)
-    requires(!std::is_void_v<T>)
-  {
+  auto &operator*(this auto const &self) {
     T *ptr = self.resolve_impl();
     fatal(ptr, "Dereferencing null pointer!");
     return *ptr;
@@ -20,77 +20,57 @@ public:
     return ptr;
   }
 
-  auto &operator[](this auto const &self, std::ptrdiff_t n)
-    requires(!std::is_void_v<T>)
-  {
+  auto &operator[](this auto const &self, std::ptrdiff_t n) {
     T *ptr = self.resolve_impl();
     return ptr[n];
   }
 
-  auto &operator++(this auto &self)
-    requires(!std::is_void_v<T>)
-  {
-    self.advance_impl(sizeof(T));
+  auto &operator++(this auto &self) {
+    self.advance_impl(1);
     return self;
   }
 
-  auto operator++(this auto &self, int)
-    requires(!std::is_void_v<T>)
-  {
-    auto tmp = self; // Copy of derived type
+  auto operator++(this auto &self, int) {
+    auto tmp = self;
     ++self;
     return tmp;
   }
 
-  auto &operator--(this auto &self)
-    requires(!std::is_void_v<T>)
-  {
-    self.advance_impl(-sizeof(T));
+  auto &operator--(this auto &self) {
+    self.advance_impl(-1);
     return self;
   }
 
-  auto operator--(this auto &self, int)
-    requires(!std::is_void_v<T>)
-  {
+  auto operator--(this auto &self, int) {
     auto tmp = self;
     --self;
     return tmp;
   }
 
-  auto &operator+=(this auto &self, std::ptrdiff_t n)
-    requires(!std::is_void_v<T>)
-  {
-    self.advance_impl(n * sizeof(T));
+  auto &operator+=(this auto &self, std::ptrdiff_t n) {
+    self.advance_impl(n);
     return self;
   }
 
-  auto &operator-=(this auto &self, std::ptrdiff_t n)
-    requires(!std::is_void_v<T>)
-  {
-    self.advance_impl(-n * sizeof(T));
+  auto &operator-=(this auto &self, std::ptrdiff_t n) {
+    self.advance_impl(-n);
     return self;
   }
 
-  auto operator+(this auto const &self, std::ptrdiff_t n)
-    requires(!std::is_void_v<T>)
-  {
+  auto operator+(this auto const &self, std::ptrdiff_t n) {
     auto result = self;
     result += n;
     return result;
   }
 
-  auto operator-(this auto const &self, std::ptrdiff_t n)
-    requires(!std::is_void_v<T>)
-  {
+  auto operator-(this auto const &self, std::ptrdiff_t n) {
     auto result = self;
     result -= n;
     return result;
   }
 
   template <typename other_t>
-  std::ptrdiff_t operator-(this auto const &self, other_t const &other)
-    requires(!std::is_void_v<T>)
-  {
+  std::ptrdiff_t operator-(this auto const &self, other_t const &other) {
     T *this_ptr = self.resolve_impl();
     T *other_ptr;
 
@@ -131,11 +111,7 @@ public:
     return !self.is_null_impl();
   }
 
-  operator T *(this auto const &self)
-    requires(!std::is_void_v<T>)
-  {
-    return self.resolve_impl();
-  }
+  operator T *(this auto const &self) { return self.resolve_impl(); }
 
   operator void *(this auto const &self) {
     return static_cast<void *>(self.resolve_impl());
@@ -143,7 +119,6 @@ public:
 };
 
 template <typename T>
-  requires(!std::is_void_v<T>)
 auto operator+(std::ptrdiff_t n, const pointer_operations<T> &ptr) {
   return ptr + n;
 }

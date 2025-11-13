@@ -1,4 +1,5 @@
 #pragma once
+#include <array>
 #include <cassert>
 #include <concepts>
 #include <core/intrusive_slist.h>
@@ -31,7 +32,7 @@ public:
   };
 
   static_assert(sizeof(node) <= allocator_type::block_size,
-                "Allocator block_size is too small for offset_list node");
+                "node must be smaller or equal to block size");
   static_assert(allocator_type::block_size % alignof(node) == 0,
                 "Allocator block_size must be a multiple of node alignment");
 
@@ -40,9 +41,9 @@ public:
 private:
   node_pointer allocate_node(auto &&...args) noexcept {
     auto mem = unwrap(storage::_allocator->allocate_block());
-    // Must use () to call constructor, not {} which does aggregate init and zeros bitfields
-    node *new_node = new (mem) node{node_pointer(nullptr), T(exforward(args)...)};
-    return node_pointer(new_node);
+    node *new_node =
+        new (mem) node{node_pointer(nullptr), T(exforward(args)...)};
+    return node_pointer(static_cast<void *>(mem));
   }
 
   void deallocate_node(node_pointer ptr) noexcept {

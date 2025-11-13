@@ -22,7 +22,7 @@ add_executable(
   "freelist.t.cpp"
   # "dynamic_buffer.t.cpp"
   "growing_pool.t.cpp"
-  "growing_pool_ptr.t.cpp"
+  "segmented_ptr.t.cpp"
   # ${TEST_FILES}
 )
 

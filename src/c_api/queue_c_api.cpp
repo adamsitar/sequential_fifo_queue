@@ -1,5 +1,3 @@
-
-
 #include "queue_c_api.h"
 
 #include <cstddef>
@@ -8,8 +6,8 @@
 #include <queue.h>
 
 using local_allocator = local_buffer(16, 128);
-using list_allocator = growing_pool(8, 8, local_allocator);
-using queue_allocator = growing_pool(8, 8, local_allocator);
+using list_allocator = growing_pool(8, 32, local_allocator);
+using queue_allocator = growing_pool(8, 32, local_allocator);
 using byte_queue = queue<std::byte, 16, local_allocator, list_allocator>;
 
 static local_allocator g_local_allocator;

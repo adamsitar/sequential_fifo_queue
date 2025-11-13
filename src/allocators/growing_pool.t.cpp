@@ -8,8 +8,13 @@
 
 class GrowingPoolTest : public ::testing::Test {
 protected:
+  static constexpr size_t max_manager_for_one_byte = 32;
+  // offset_bits = std::bit_width(2 - 1) = std::bit_width(1) = 1 bit
+  // segment_bits = std::bit_width(4 - 1) = std::bit_width(3) = 2 bits
+  // manager_bits = 8 - 1 - 2 = 5 bits (remaining budget)
+
   using local_alloc = local_buffer(16, 128);
-  using pool_type = growing_pool(8, 8, local_alloc);
+  using pool_type = growing_pool(8, max_manager_for_one_byte, local_alloc);
 
   local_alloc upstream;
   pool_type pool{&upstream};

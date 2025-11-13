@@ -83,11 +83,10 @@ template <typename unique_tag> struct segmented_ptr_storage {
       if (is_void) {
         // For void*, return byte offset
         return static_cast<size_t>(byte_offset);
-      } else {
-        // For typed pointers, return block index
-        fail(byte_offset % elem_size != 0, "misaligned pointer");
-        return static_cast<size_t>(byte_offset / elem_size);
       }
+      // For typed pointers, return block index
+      fail(byte_offset % elem_size != 0, "misaligned pointer");
+      return static_cast<size_t>(byte_offset / elem_size);
     };
 
     return {};

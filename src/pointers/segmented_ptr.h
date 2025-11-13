@@ -1,8 +1,8 @@
 #pragma once
+#include "growing_pool_storage.h"
 #include <bit>
 #include <cstddef>
 #include <cstdint>
-#include <pointers/growing_pool_storage.h>
 #include <pointers/pointer_operations.h>
 #include <result/result.h>
 #include <tuple>
@@ -10,8 +10,8 @@
 #include <types.h>
 
 // Bit-packed pointer for growing_pool allocator.
-template <typename T, size_t offset_count_v, size_t segment_count_v,
-          size_t manager_count_v, typename unique_tag>
+template <typename T, typename block_t, size_t offset_count_v,
+          size_t segment_count_v, size_t manager_count_v, typename unique_tag>
 class basic_segmented_ptr : public pointer_operations<T> {
   using storage = segmented_ptr_storage<unique_tag>;
 
@@ -46,7 +46,7 @@ private:
     underlying_type manager : manager_bits;
   } _id;
 
-  template <typename, size_t, size_t, size_t, typename>
+  template <typename, typename, size_t, size_t, size_t, typename>
   friend class basic_segmented_ptr;
   friend class pointer_operations<T>;
 
@@ -60,16 +60,8 @@ private:
     return resolve_via_storage(manager_id, segment_id, offset);
   }
 
-  void advance_impl(int bytes) {
+  void advance_impl(std::ptrdiff_t elements) {
     if (is_null_impl()) { return; }
-
-    // Convert bytes to element count
-    int elements = 0;
-    if constexpr (std::is_void_v<T>) {
-      elements = bytes;
-    } else {
-      elements = bytes / sizeof(T);
-    }
 
     constexpr size_t blocks_per_segment = offset_count_v;
     constexpr size_t blocks_per_manager = blocks_per_segment * segment_count_v;
@@ -133,29 +125,25 @@ private:
     if (!segment_base_result) { return nullptr; }
 
     std::byte *segment_base = *segment_base_result;
-
-    if constexpr (std::is_void_v<T>) {
-      return reinterpret_cast<T *>(segment_base + offset);
-    } else {
-      // offset is in units of sizeof(T)
-      return std::launder(
-          reinterpret_cast<T *>(segment_base + (offset * sizeof(T))));
-    }
+    // offset is in units of sizeof(block_t)
+    return std::launder(
+        reinterpret_cast<T *>(segment_base + (offset * sizeof(block_t))));
   }
 
   // Type-erased resolution via storage
   T *resolve_via_storage(size_t manager_id, size_t segment_id,
                          size_t offset) const {
     auto resolve_result = storage::template resolve_pointer<T>(
-        manager_id, segment_id, offset, sizeof(T));
+        manager_id, segment_id, offset, sizeof(block_t));
     return resolve_result ? *resolve_result : nullptr;
   }
 
 public:
   // Rebind this pointer type to a different pointed-to type
   template <typename U>
-  using rebind = basic_segmented_ptr<U, offset_count_v, segment_count_v,
-                                     manager_count_v, unique_tag>;
+  using rebind =
+      basic_segmented_ptr<U, block_t, offset_count_v, segment_count_v,
+                          manager_count_v, unique_tag>;
 
   constexpr basic_segmented_ptr() { set_null_impl(); }
   constexpr basic_segmented_ptr(std::nullptr_t) { set_null_impl(); }
@@ -201,7 +189,7 @@ public:
 
     // Compute offset within segment
     auto offset_result = storage::compute_offset_in_segment(
-        manager_id, segment_id, static_cast<std::byte *>(ptr), sizeof(T),
+        manager_id, segment_id, static_cast<std::byte *>(ptr), sizeof(block_t),
         std::is_void_v<T>);
     if (!offset_result) {
       set_null_impl();
@@ -218,15 +206,15 @@ public:
   template <typename U>
     requires(!std::same_as<T, U>)
   basic_segmented_ptr(
-      const basic_segmented_ptr<U, offset_count_v, segment_count_v,
+      const basic_segmented_ptr<U, block_t, offset_count_v, segment_count_v,
                                 manager_count_v, unique_tag> &other)
       : basic_segmented_ptr(static_cast<void *>(other.resolve_impl())) {}
 
   template <typename U>
     requires(!std::same_as<T, U>)
-  basic_segmented_ptr &
-  operator=(const basic_segmented_ptr<U, offset_count_v, segment_count_v,
-                                      manager_count_v, unique_tag> &other) {
+  basic_segmented_ptr &operator=(
+      const basic_segmented_ptr<U, block_t, offset_count_v, segment_count_v,
+                                manager_count_v, unique_tag> &other) {
     *this = basic_segmented_ptr(static_cast<void *>(other.resolve_impl()));
     return *this;
   }

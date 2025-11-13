@@ -56,8 +56,6 @@ public:
   queue(queue &&) = delete;
   queue &operator=(queue &&) = delete;
 
-  // Push element to the back of the queue.
-  // If current ring_buffer is full, allocates a new ring_buffer node.
   template <typename U>
     requires std::constructible_from<T, U>
   result<> push(U &&value) noexcept {
@@ -109,10 +107,13 @@ public:
 
   bool empty() const noexcept { return _list.is_empty(); }
 
-  // O(n) where n = number of ring_buffers
+  // O(n) where n is number of ring_buffers
   size_t size() const noexcept {
     size_t total = 0;
+    int counter = 0;
+    std::println("before iteration", counter++);
     for (const auto &node : _list) {
+      std::println("{}", counter++);
       total += node.buffer.size();
     }
     return total;
