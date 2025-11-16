@@ -1,4 +1,5 @@
 #pragma once
+#include <allocators/test_allocator.h>
 #include <array>
 #include <cassert>
 #include <concepts>
@@ -15,10 +16,9 @@ template <typename allocator_type> struct offset_list_allocator_storage {
 };
 
 // Singly-linked list using segmented pointers
-template <is_nothrow T, homogenous allocator_type>
+template <is_nothrow T, is_homogenous allocator_type = simple_test_allocator>
 class offset_list
-    : public forward_container_iterator_interface<
-          offset_list<T, allocator_type>>,
+    : public forward_iterator_interface<offset_list<T, allocator_type>>,
       public before_begin_iterator_interface<offset_list<T, allocator_type>> {
 public:
   struct node;
@@ -41,9 +41,11 @@ public:
 private:
   node_pointer allocate_node(auto &&...args) noexcept {
     auto mem = unwrap(storage::_allocator->allocate_block());
+    void *raw_ptr = static_cast<void *>(mem);
     node *new_node =
         new (mem) node{node_pointer(nullptr), T(exforward(args)...)};
-    return node_pointer(static_cast<void *>(mem));
+    node_pointer result(static_cast<void *>(mem));
+    return result;
   }
 
   void deallocate_node(node_pointer ptr) noexcept {
@@ -51,18 +53,29 @@ private:
     storage::_allocator->deallocate_block(ptr);
   }
 
+private:
+  // Static default allocator instance for default-constructed containers
+  inline static allocator_type default_allocator{};
+
 public:
   offset_list(const offset_list &) = delete;
   offset_list &operator=(const offset_list &) = delete;
   offset_list(offset_list &&) = delete;
   offset_list &operator=(offset_list &&) = delete;
 
+  // Default constructor - uses static test allocator
+  offset_list() : offset_list(&default_allocator) {}
+
   explicit offset_list(allocator_type *allocator) {
     fatal(allocator == nullptr, "Allocator cannot be null");
     storage::_allocator = allocator;
   }
 
-  ~offset_list() { clear(); }
+  ~offset_list() {
+    clear();
+    // Clear static storage to prevent stale allocator pointers
+    storage::_allocator = nullptr;
+  }
 
   bool is_empty() const noexcept { return _list.empty(); }
   size_t size() const noexcept { return _list.size(); }
@@ -148,14 +161,14 @@ public:
   iterator erase_after(iterator pos, iterator last) noexcept;
 };
 
-template <is_nothrow T, homogenous allocator_type>
+template <is_nothrow T, is_homogenous allocator_type>
 struct offset_list<T, allocator_type>::iterator
     : public forward_iterator_facade<T> {
   friend class offset_list;
   using intrusive_iterator = typename intrusive_slist<node_pointer>::iterator;
-  const offset_list *_list;
-  intrusive_iterator _intrusive_it;
-  bool _is_before_begin;
+  const offset_list *_list{nullptr};
+  intrusive_iterator _intrusive_it{nullptr};
+  bool _is_before_begin{false};
 
   iterator(const offset_list *list, intrusive_iterator it, bool is_before_begin)
       : _list(list), _intrusive_it(it), _is_before_begin(is_before_begin) {}
@@ -169,7 +182,8 @@ public:
   // CRTP primitives for forward_iterator_facade
   T &dereference() const noexcept {
     fatal(_is_before_begin, "Cannot dereference before_begin iterator");
-    return _intrusive_it.node()->value;
+    auto node_ptr = _intrusive_it.node();
+    return node_ptr->value;
   }
 
   void increment() noexcept {
@@ -190,7 +204,7 @@ public:
   bool is_before_begin() const { return _is_before_begin; }
 };
 
-template <is_nothrow T, homogenous allocator_type>
+template <is_nothrow T, is_homogenous allocator_type>
 typename offset_list<T, allocator_type>::iterator
 offset_list<T, allocator_type>::insert_after(iterator pos,
                                              auto &&value) noexcept
@@ -213,7 +227,7 @@ offset_list<T, allocator_type>::insert_after(iterator pos,
   return iterator(this, result_it, false);
 }
 
-template <is_nothrow T, homogenous allocator_type>
+template <is_nothrow T, is_homogenous allocator_type>
 typename offset_list<T, allocator_type>::iterator
 offset_list<T, allocator_type>::emplace_after(iterator pos,
                                               auto &&...args) noexcept {
@@ -234,7 +248,7 @@ offset_list<T, allocator_type>::emplace_after(iterator pos,
   return iterator(this, result_it, false);
 }
 
-template <is_nothrow T, homogenous allocator_type>
+template <is_nothrow T, is_homogenous allocator_type>
 typename offset_list<T, allocator_type>::iterator
 offset_list<T, allocator_type>::erase_after(iterator pos) noexcept {
   if (pos._is_before_begin) {
@@ -255,7 +269,7 @@ offset_list<T, allocator_type>::erase_after(iterator pos) noexcept {
   return iterator(this, result_it, false);
 }
 
-template <is_nothrow T, homogenous allocator_type>
+template <is_nothrow T, is_homogenous allocator_type>
 typename offset_list<T, allocator_type>::iterator
 offset_list<T, allocator_type>::erase_after(iterator pos,
                                             iterator last) noexcept {

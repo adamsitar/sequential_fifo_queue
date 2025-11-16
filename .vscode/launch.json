@@ -20,6 +20,16 @@
       "stopOnEntry": false,
       "cwd": "${workspaceFolder}",
       "terminal": "integrated"
+    },
+    {
+      "name": "C_API tests",
+      "type": "codelldb",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/linux_debug/src/c_api/c_api_test",
+      "args": [],
+      "stopOnEntry": false,
+      "cwd": "${workspaceFolder}",
+      "terminal": "integrated"
     }
   ]
 }

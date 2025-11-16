@@ -18,8 +18,12 @@ void on_illegal_operation(void);
 typedef struct queue_handle queue_handle;
 typedef queue_handle Q; // Alias for assignment compatibility
 
-Q *create_queue(void);
-void destroy_queue(Q *q);
+// Opaque allocator types for C interface
+// (should be homogenous_allocator_base* in C++)
+typedef void* allocator_t;
+
+Q *create_queue(allocator_t local_alloc, allocator_t list_alloc, allocator_t queue_alloc);
+void destroy_queue(Q *q, allocator_t queue_alloc);
 void enqueue_byte(Q *q, unsigned char b);
 unsigned char dequeue_byte(Q *q);
 

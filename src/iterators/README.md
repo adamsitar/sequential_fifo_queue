@@ -1,4 +1,4 @@
-# Modern C++23 Iterator Library
+# Iterator Library
 
 A lightweight, header-only iterator library leveraging C++23's **deducing this** feature to provide clean, efficient iterator and container interfaces.
 

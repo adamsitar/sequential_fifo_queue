@@ -17,7 +17,7 @@ template <typename T = void> struct result : public std::expected<T, error> {
   result(const char *msg,
          std::source_location loc = std::source_location::current()) noexcept
       : base(std::unexpected(error::generic)) {
-    log::header("[fail] Unconditional");
+    log::header("[Fail] Unconditional");
     log::location(loc);
     log::message(msg);
     log::error_code(error::generic);
@@ -35,7 +35,7 @@ struct result<T &> : public std::expected<std::reference_wrapper<T>, error> {
   result(const char *msg,
          std::source_location loc = std::source_location::current()) noexcept
       : base(std::unexpected(error::generic)) {
-    log::header("[fail] Unconditional");
+    log::header("[Fail] Unconditional");
     log::location(loc);
     log::message(msg);
     log::error_code(error::generic);
@@ -110,7 +110,7 @@ inline void ok_deref_helper(void_result_tag) {}
 __attribute__((always_inline)) inline void fatal_error(
     const char *expr, error err,
     std::source_location loc = std::source_location::current()) noexcept {
-  log::header("FATAL: Result unwrap failed");
+  log::header("[Fatal]: Result unwrap failed");
   log::location(loc);
   log::expression(expr);
   log::error_code(err);
@@ -134,7 +134,7 @@ private:
   error _error_code = error::generic;
   const char *_message;
   std::function<void()> _context_logger = nullptr;
-  // bool _has_context = false;
+  bool _has_context = false;
   bool _log_stacktrace = false;
   bool _silent = false;
 
@@ -155,16 +155,16 @@ public:
   }
 
   // WIP
-  //  template <typename... Args> fail_builder &&ctx(Args &&...args) && {
-  //    _context_logger = [args_tuple = std::make_tuple(
-  //                           std::forward<Args>(args)...)]() mutable {
-  //      std::apply(
-  //          [](auto &&...a) { log::log_pairs(std::forward<decltype(a)>(a)...);
-  //          }, std::move(args_tuple));
-  //    };
-  //    _has_context = true;
-  //    return std::move(*this);
-  //  }
+  template <typename... Args> fail_builder &&ctx(Args &&...args) && {
+    _context_logger = [args_tuple = std::make_tuple(
+                           std::forward<Args>(args)...)]() mutable {
+      std::apply(
+          [](auto &&...a) { log::log_pairs(std::forward<decltype(a)>(a)...); },
+          std::move(args_tuple));
+    };
+    _has_context = true;
+    return std::move(*this);
+  }
 
   constexpr fail_builder &&stacktrace() && noexcept {
     _log_stacktrace = true;
@@ -178,7 +178,7 @@ public:
 
   template <typename T = void> operator result<T>() && noexcept {
     if (!_silent) {
-      log::header("[fail]");
+      log::header("[Fail]");
       log::location(_loc);
       log::condition(_condition);
       log::error_code(_error_code);
@@ -186,7 +186,7 @@ public:
       // if (_has_context && _context_logger) {
       //   _context_logger();
       // }
-      if (_log_stacktrace) { log::stacktrace(2); }
+      if (_log_stacktrace) { log::stacktrace(0); }
     }
     return std::unexpected(_error_code);
   }
@@ -209,7 +209,7 @@ public:
 __attribute__((always_inline)) inline void fatal_assertion(
     const char *condition_str, const char *message,
     std::source_location loc = std::source_location::current()) noexcept {
-  log::header("[fatal]");
+  log::header("[Fatal]");
   log::location(loc);
   log::condition(condition_str);
   log::message(message);

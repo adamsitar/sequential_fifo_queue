@@ -23,6 +23,9 @@ class basic_thin_ptr : public pointer_operations<T> {
   using storage = thin_ptr_storage<unique_tag, offset_type>;
   offset_type _offset;
 
+  // Null sentinel is max value of offset_type (since offset_type is now a primitive)
+  static constexpr offset_type null_sentinel = std::numeric_limits<offset_type>::max();
+
   template <typename, typename, typename, typename> friend class basic_thin_ptr;
   friend class pointer_operations<T>;
 
@@ -32,17 +35,17 @@ class basic_thin_ptr : public pointer_operations<T> {
   }
 
   T *resolve_impl() const {
-    if (_offset == offset_type::null_sentinel) { return nullptr; }
+    if (_offset == null_sentinel) { return nullptr; }
     std::byte *base = get_base();
     return std::launder(
         reinterpret_cast<T *>(base + _offset * sizeof(block_t)));
   }
 
-  bool is_null_impl() const { return _offset == offset_type::null_sentinel; }
+  bool is_null_impl() const { return _offset == null_sentinel; }
   void advance_impl(std::ptrdiff_t elements) {
     _offset += elements * sizeof(block_t);
   }
-  void set_null_impl() { _offset = offset_type::null_sentinel; }
+  void set_null_impl() { _offset = null_sentinel; }
   offset_type comparison_key() const { return _offset; }
 
 public:
@@ -64,7 +67,7 @@ public:
       auto *base = get_base();
       auto byte_offset = ptr::offset(base, ptr);
       _offset = byte_offset / sizeof(block_t);
-      fatal(_offset == offset_type::null_sentinel,
+      fatal(_offset == null_sentinel,
             "Pointer offset collides with null sentinel value");
     }
   }
@@ -78,7 +81,7 @@ public:
       std::byte *base = get_base();
       auto byte_offset = ptr::offset(base, ptr);
       _offset = byte_offset / sizeof(block_t);
-      fatal(_offset == offset_type::null_sentinel,
+      fatal(_offset == null_sentinel,
             "Pointer offset collides with null sentinel value");
     }
   }

@@ -1,6 +1,78 @@
+#include <cstring>
 #include <growing_pool.h>
 #include <gtest/gtest.h>
 #include <local_buffer.h>
+#include <pointers/pointer_test_suite.h>
+
+// ============================================================================
+// Generic Pointer Test Adapter for growing_pool::pointer_type
+// ============================================================================
+
+struct growing_pool_ptr_adapter {
+  using value_type = long;
+  using local_alloc = local_buffer(256, 64);
+  using pool_type = growing_pool(sizeof(value_type), 32, local_alloc);
+  using block_pointer = pool_type::pointer_type;
+  using pointer_type = typename block_pointer::template rebind<value_type>;
+
+  struct allocator_type {
+    local_alloc local;
+    pool_type pool{&local};
+    pointer_type array_block{nullptr};
+  };
+
+  static void setup_allocator(allocator_type &alloc) { (void)alloc; }
+
+  static void cleanup_allocator(allocator_type &alloc) {
+    if (alloc.array_block != nullptr) {
+      alloc.pool.deallocate_block(alloc.array_block);
+    }
+  }
+
+  static value_type *allocate_array(allocator_type &alloc, size_t count) {
+    auto block_result = alloc.pool.allocate_block();
+    if (!block_result) { return nullptr; }
+
+    alloc.array_block = *block_result;
+    auto *raw =
+        static_cast<value_type *>(static_cast<void *>(alloc.array_block));
+    return raw;
+  }
+
+  static void deallocate_array(allocator_type &alloc, value_type *ptr,
+                               size_t count) {
+    (void)ptr;
+    (void)count;
+    // Handled in cleanup_allocator
+  }
+
+  static pointer_type make_pointer(allocator_type &alloc, value_type *raw_ptr) {
+    auto *base =
+        static_cast<value_type *>(static_cast<void *>(alloc.array_block));
+    std::ptrdiff_t offset = raw_ptr - base;
+    pointer_type result(alloc.array_block.get_manager_id(),
+                        alloc.array_block.get_segment_id(),
+                        alloc.array_block.get_offset());
+    result += offset;
+    return result;
+  }
+
+  static value_type *to_raw(pointer_type const &ptr) {
+    return static_cast<value_type *>(static_cast<void *>(ptr));
+  }
+};
+
+// Instantiate generic pointer operation tests
+using GrowingPoolPtrTypes = ::testing::Types<growing_pool_ptr_adapter>;
+INSTANTIATE_TYPED_TEST_SUITE_P(GrowingPoolPtr, PointerOperationsTest,
+                               GrowingPoolPtrTypes);
+
+// ============================================================================
+// growing_pool::pointer_type Specific Tests
+// ============================================================================
+// These tests cover implementation-specific details like ID validation,
+// segment boundary crossing, etc. Generic pointer operations are tested above.
+// ============================================================================
 
 // ============================================================================
 // Test Fixture

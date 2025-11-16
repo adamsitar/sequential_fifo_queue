@@ -7,18 +7,14 @@
       "binaryDir": "${sourceDir}/build/${presetName}",
       "generator": "Ninja",
       "cacheVariables": {
-        "CMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
+        "DCMAKE_TOOLCHAIN_FILE": "$env{VCPKG_ROOT}/scripts/buildsystems/vcpkg.cmake"
       }
     },
     {
       "name": "_debug",
       "hidden": true,
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "ENABLE_ASAN": "ON",
-        "ENABLE_UBSAN": "ON",
-        "ENABLE_MSAN": "ON",
-        "ENABLE_TSAN": "OFF"
+        "CMAKE_BUILD_TYPE": "Debug"
       }
     },
     {

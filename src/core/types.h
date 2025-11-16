@@ -21,6 +21,14 @@ template <std::uint64_t N> constexpr auto smallest_underlying_type() {
   }
 }
 
+// Type alias to smallest unsigned integer type that can hold 'value'
+// Use narrow_cast at assignment sites where narrowing protection is needed
+template <std::size_t value>
+using smallest_t = decltype(smallest_underlying_type<value>());
+
+// Commented out: struct wrapper approach caused conversion operator ambiguity
+// If narrow_cast protection is needed, apply it at specific assignment sites
+/*
 template <std::size_t value> struct smallest_t {
   using underlying_type = decltype(smallest_underlying_type<value>());
   underlying_type _value{0};
@@ -41,3 +49,4 @@ template <std::size_t value> struct smallest_t {
   constexpr operator underlying_type &() noexcept { return _value; }
   constexpr operator underlying_type() const noexcept { return _value; }
 };
+*/

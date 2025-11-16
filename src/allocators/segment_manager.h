@@ -7,7 +7,7 @@
 #include <types.h>
 
 // Non-unique, reusable component that manages a fixed number of segments.
-template <size_t block_size_v, homogenous upstream_t>
+template <size_t block_size_v, is_homogenous upstream_t>
   requires is_power_of_two<block_size_v>
 class segment_manager {
 public:
@@ -42,7 +42,7 @@ private:
       return freelist_count >= blocks_per_segment;
     }
 
-    bool owns_block(const block_type *block) const noexcept {
+    bool owns_block(block_type *block) const noexcept {
       if (!is_valid()) { return false; }
 
       auto *freelist = reinterpret_cast<const freelist_type *>(
@@ -64,8 +64,8 @@ private:
           reinterpret_cast<freelist_type *>(static_cast<void *>(segment_ptr));
       ok(freelist->push(*block, freelist_head, freelist_count));
 
-      // If segment becomes completely empty, return it to upstream
-      if (is_empty()) {
+      // If segment becomes completely empty (all blocks free), return it to upstream
+      if (is_full()) {
         ok(upstream->deallocate_block(segment_ptr));
         segment_ptr = nullptr;
       }
@@ -97,6 +97,7 @@ public:
     for (auto &segment : std::span(_segments.data(), _high_water_mark)) {
       if (segment.is_valid()) {
         unwrap(upstream->deallocate_block(segment.segment_ptr));
+        segment.segment_ptr = nullptr; // Mark as invalid to prevent double-free
       }
     }
   }
@@ -149,7 +150,7 @@ public:
     return {};
   }
 
-  bool owns(const block_type *block) const noexcept {
+  bool owns(block_type *block) const noexcept {
     if (block == nullptr) { return false; }
 
     for (size_t i = 0; i < _high_water_mark; ++i) {
@@ -192,10 +193,8 @@ public:
     return static_cast<std::byte *>(static_cast<void *>(metadata.segment_ptr));
   }
 
-  // for growing_pool's pointer lookup
   result<size_t> find_segment_for_pointer(std::byte *ptr) const noexcept {
-    auto *block = reinterpret_cast<const block_type *>(ptr);
-
+    auto *block = reinterpret_cast<block_type *>(ptr);
     for (size_t i = 0; i < _high_water_mark; ++i) {
       if (_segments[i].is_valid() && _segments[i].owns_block(block)) {
         return i;

@@ -58,12 +58,12 @@ template <typename T>
 concept managed = memory_resource_like<T> && provides_management<T>;
 
 template <typename T>
-concept homogenous =
+concept is_homogenous =
     managed<T> && provides_uniform_blocks<T> && provides_pointer<T>;
 
 // Contiguous allocators provide offset-based addressing
 template <typename T>
-concept contiguous_allocator = homogenous<T> && provides_offset<T>;
+concept contiguous_allocator = is_homogenous<T> && provides_offset<T>;
 
 // Type property concepts
 template <typename T>

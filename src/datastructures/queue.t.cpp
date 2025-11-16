@@ -4,13 +4,12 @@
 #include <memory>
 #include <queue.h>
 
-// Test configuration
-constexpr size_t local_buffer_size = 16;
-constexpr size_t local_buffer_count = 8; // 1KB total
-constexpr size_t ring_buffer_capacity =
-    4; // Small capacity to test multi-buffer behavior
+constexpr size_t local_buffer_block_size = 16;
+constexpr size_t local_buffer_block_count = 128;
+constexpr size_t ring_buffer_capacity = 4;
 
-using local_alloc = local_buffer(local_buffer_size, local_buffer_count);
+using local_alloc = local_buffer(local_buffer_block_size,
+                                 local_buffer_block_count);
 using growing_pool_alloc = growing_pool(8, 32, local_alloc);
 using test_queue =
     queue<int, ring_buffer_capacity, local_alloc, growing_pool_alloc>;

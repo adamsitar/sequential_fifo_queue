@@ -10,7 +10,7 @@ class pointer_operations {
 public:
   auto &operator*(this auto const &self) {
     T *ptr = self.resolve_impl();
-    fatal(ptr, "Dereferencing null pointer!");
+    fatal(ptr == nullptr, "Dereferencing null pointer!");
     return *ptr;
   }
 
@@ -70,6 +70,7 @@ public:
   }
 
   template <typename other_t>
+    requires(!std::is_arithmetic_v<other_t>)
   std::ptrdiff_t operator-(this auto const &self, other_t const &other) {
     T *this_ptr = self.resolve_impl();
     T *other_ptr;
@@ -118,7 +119,4 @@ public:
   }
 };
 
-template <typename T>
-auto operator+(std::ptrdiff_t n, const pointer_operations<T> &ptr) {
-  return ptr + n;
-}
+auto operator+(std::ptrdiff_t n, auto const &ptr) { return ptr + n; }

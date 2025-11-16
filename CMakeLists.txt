@@ -34,7 +34,7 @@ add_compile_options(
   $<$<AND:$<CONFIG:Release>,$<CXX_COMPILER_ID:GNU>>:-fstack-clash-protection>
 
   # Build profiling - generates .json trace files
-  -ftime-trace
+  # -ftime-trace
 )
 add_link_options(-pie)
 
@@ -47,3 +47,11 @@ include(Sanitize)
 
 enable_testing()
 add_subdirectory(src)
+
+# Custom target to build main test suites
+add_custom_target(all_tests
+  DEPENDS
+    allocators_test
+    datastructures_test
+    c_api_test
+)

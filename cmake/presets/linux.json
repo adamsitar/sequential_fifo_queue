@@ -21,7 +21,7 @@
         ]
       },
       "cacheVariables": {
-        "CMAKE_CXX_COMPILER": "clang++"
+        "CMAKE_CXX_COMPILER": "g++"
       }
     },
     {

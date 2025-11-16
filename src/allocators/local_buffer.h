@@ -113,7 +113,7 @@ std::pmr::memory_resource
 #define local_buffer(block_size, block_count)                                  \
   unique_local_buffer<block_size, block_count, decltype([] {})>
 
-static_assert(homogenous<local_buffer(256, 8)>,
+static_assert(is_homogenous<local_buffer(256, 8)>,
               "local_buffer must implement homogeneous_allocator concept");
 static_assert(provides_offset<local_buffer(256, 8)>,
               "local_buffer must provide offset-based addressing");

@@ -1,7 +1,35 @@
 #include <growing_pool.h>
 #include <gtest/gtest.h>
+#include <iterators/iterator_test_suite.h>
 #include <local_buffer.h>
 #include <offset_list.h>
+#include <vector>
+
+// ============================================================================
+// Generic Iterator Test Adapter for offset_list
+// ============================================================================
+
+struct offset_list_adapter {
+  using value_type = int;
+  using container_type = offset_list<value_type>; // Uses default allocator!
+
+  static void populate(container_type &container,
+                       std::vector<value_type> const &values) {
+    // offset_list uses push_front, so insert in reverse to maintain order
+    for (auto it = values.rbegin(); it != values.rend(); ++it) {
+      container.push_front(*it);
+    }
+  }
+};
+
+// Instantiate generic forward iterator tests for offset_list
+using OffsetListIteratorTypes = ::testing::Types<offset_list_adapter>;
+INSTANTIATE_TYPED_TEST_SUITE_P(OffsetList, GenericForwardIteratorTestSuite,
+                               OffsetListIteratorTypes);
+
+// ============================================================================
+// offset_list Specific Tests
+// ============================================================================
 
 constexpr size_t top_level_block_size = 16;
 constexpr size_t top_level_block_count = 128;
@@ -220,7 +248,7 @@ TEST_F(OffsetListTest, CanHandleMultipleAllocations) {
   // const int num_elements = test_allocator::max_block_count - 2;
   const int num_elements = 32;
   for (int i = 0; i < num_elements; ++i) {
-    std::println("pushing i: {}", i);
+    log("pushing i: {}", i);
     auto result = list.push_front(i);
     ASSERT_TRUE(result.has_value()) << "Failed to allocate element " << i;
   }

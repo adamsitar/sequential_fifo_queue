@@ -1,6 +1,52 @@
 #include <gtest/gtest.h>
+#include <iterators/iterator_test_suite.h>
 #include <local_buffer.h>
 #include <ring_buffer.h>
+#include <vector>
+
+// ============================================================================
+// Generic Iterator Test Adapter for ring_buffer
+// ============================================================================
+
+struct ring_buffer_adapter {
+  using value_type = int;
+
+  static constexpr size_t allocator_block_size = 128;
+  static constexpr size_t allocator_block_count = 4;
+  static constexpr size_t capacity = 16; // Larger capacity for testing
+
+  using allocator_type = local_buffer(allocator_block_size,
+                                      allocator_block_count);
+  using container_type = ring_buffer<value_type, capacity, allocator_type>;
+
+  static void setup_allocator(allocator_type &alloc) { (void)alloc; }
+  static void cleanup_allocator(allocator_type &alloc) { (void)alloc; }
+
+  static void initialize_container(container_type &container,
+                                   allocator_type &alloc) {
+    new (&container) container_type(&alloc);
+  }
+
+  static void cleanup_container(container_type &container) {
+    container.~container_type();
+  }
+
+  static void populate(container_type &container,
+                       std::vector<value_type> const &values) {
+    for (auto const &value : values) {
+      container.push(value);
+    }
+  }
+};
+
+// Instantiate generic random access iterator tests for ring_buffer
+using RingBufferIteratorTypes = ::testing::Types<ring_buffer_adapter>;
+INSTANTIATE_TYPED_TEST_SUITE_P(RingBuffer, GenericRandomAccessIteratorTestSuite,
+                               RingBufferIteratorTypes);
+
+// ============================================================================
+// ring_buffer Specific Tests
+// ============================================================================
 
 constexpr size_t allocator_block_size = 128;
 constexpr size_t allocator_block_count = 4;

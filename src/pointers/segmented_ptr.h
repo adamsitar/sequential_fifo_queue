@@ -1,6 +1,5 @@
 #pragma once
 #include "growing_pool_storage.h"
-#include <bit>
 #include <cstddef>
 #include <cstdint>
 #include <pointers/pointer_operations.h>
@@ -31,19 +30,22 @@ public:
   static constexpr size_t max_segment_index = (1ULL << segment_bits) - 1;
   static constexpr size_t max_manager_index = null_manager_index - 1;
 
+  static constexpr size_t blocks_per_segment = offset_count_v;
+  static constexpr size_t blocks_per_manager = offset_count_v * segment_count_v;
+  static constexpr size_t total_blocks = manager_count_v * blocks_per_manager;
+
   using id_storage_type = smallest_t<total_bits>;
-  using underlying_type = id_storage_type::underlying_type;
 
   static_assert(total_bits <= 64, "Total bits exceeds 64-bit storage");
-  static_assert(offset_bits > 0, "offset_bits must be at least 1");
-  static_assert(segment_bits > 0, "segment_bits must be at least 1");
-  static_assert(manager_bits > 0, "manager_bits must be at least 1");
+  static_assert(offset_bits > 0, "offset_bits must be more than 0");
+  static_assert(segment_bits > 0, "segment_bits must be more than 0");
+  static_assert(manager_bits > 0, "manager_bits must be  more than 0");
 
-private:
+  // private:
   struct {
-    underlying_type offset : offset_bits;
-    underlying_type segment : segment_bits;
-    underlying_type manager : manager_bits;
+    id_storage_type offset : offset_bits{0};
+    id_storage_type segment : segment_bits{0};
+    id_storage_type manager : manager_bits{null_manager_index};
   } _id;
 
   template <typename, typename, size_t, size_t, size_t, typename>
@@ -56,18 +58,11 @@ private:
     size_t manager_id = get_manager_id();
     size_t segment_id = get_segment_id();
     size_t offset = get_offset();
-
     return resolve_via_storage(manager_id, segment_id, offset);
   }
 
   void advance_impl(std::ptrdiff_t elements) {
     if (is_null_impl()) { return; }
-
-    constexpr size_t blocks_per_segment = offset_count_v;
-    constexpr size_t blocks_per_manager = blocks_per_segment * segment_count_v;
-    // Valid managers: 0 to max_manager_index (null_manager_index is reserved)
-    constexpr size_t total_blocks =
-        (max_manager_index + 1) * blocks_per_manager;
 
     // Calculate absolute linear position across ALL managers
     std::uintptr_t current_linear =
@@ -88,18 +83,20 @@ private:
           "pointer arithmetic overflow - beyond end of pool");
 
     // Decompose absolute position back to (manager, segment, offset)
-    _id.manager = static_cast<underlying_type>(new_linear / blocks_per_manager);
+    _id.manager = static_cast<id_storage_type>(new_linear / blocks_per_manager);
     std::uintptr_t within_manager = new_linear % blocks_per_manager;
     _id.segment =
-        static_cast<underlying_type>(within_manager / blocks_per_segment);
+        static_cast<id_storage_type>(within_manager / blocks_per_segment);
     _id.offset =
-        static_cast<underlying_type>(within_manager % blocks_per_segment);
+        static_cast<id_storage_type>(within_manager % blocks_per_segment);
   }
 
   bool is_null_impl() const { return _id.manager == null_manager_index; }
 
   constexpr void set_null_impl() {
-    _id.manager = static_cast<underlying_type>(null_manager_index);
+    _id.manager = static_cast<id_storage_type>(null_manager_index);
+    _id.offset = 0;
+    _id.segment = 0;
   }
 
   auto comparison_key() const {
@@ -130,11 +127,10 @@ private:
         reinterpret_cast<T *>(segment_base + (offset * sizeof(block_t))));
   }
 
-  // Type-erased resolution via storage
   T *resolve_via_storage(size_t manager_id, size_t segment_id,
                          size_t offset) const {
-    auto resolve_result = storage::template resolve_pointer<T>(
-        manager_id, segment_id, offset, sizeof(block_t));
+    auto resolve_result = storage::template resolve_pointer<T, block_t>(
+        manager_id, segment_id, offset);
     return resolve_result ? *resolve_result : nullptr;
   }
 
@@ -149,15 +145,13 @@ public:
   constexpr basic_segmented_ptr(std::nullptr_t) { set_null_impl(); }
 
   basic_segmented_ptr(size_t manager_id, size_t segment_id, size_t offset) {
-    // Max valid values: a field with N bits can store 0 to (2^N - 1)
-
     fatal(manager_id > max_manager_index, "manager_id out of range or null");
     fatal(segment_id > max_segment_index, "segment_id out of range");
     fatal(offset > max_offset_index, "offset out of range");
 
-    _id.manager = static_cast<underlying_type>(manager_id);
-    _id.segment = static_cast<underlying_type>(segment_id);
-    _id.offset = static_cast<underlying_type>(offset);
+    _id.manager = static_cast<id_storage_type>(manager_id);
+    _id.segment = static_cast<id_storage_type>(segment_id);
+    _id.offset = static_cast<id_storage_type>(offset);
   }
 
   explicit basic_segmented_ptr(void *ptr) {
@@ -189,8 +183,7 @@ public:
 
     // Compute offset within segment
     auto offset_result = storage::compute_offset_in_segment(
-        manager_id, segment_id, static_cast<std::byte *>(ptr), sizeof(block_t),
-        std::is_void_v<T>);
+        manager_id, segment_id, static_cast<std::byte *>(ptr), sizeof(block_t));
     if (!offset_result) {
       set_null_impl();
       return;

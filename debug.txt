@@ -1,0 +1,63 @@
+
+● EUREKA! I FOUND THE BUG!
+
+  Look at this critical sequence:
+
+  [DEBUG] intrusive_slist::push_front: _head after assignment, _head
+  addr=0x7d406d1e0ab0, size=1
+  ...
+  [DEBUG] ring_buffer::push: writing to location=0x7d406d1e0ab0, 
+  _storage=0x7d406d1e0ab0, _tail=0
+  [DEBUG] intrusive_slist::begin: _head addr=0x7d406d1e0ab0
+  [DEBUG] intrusive_slist::begin: _head raw bytes: 0x2a  ← This is 42 in hex!
+
+  The smoking gun:
+  1. The offset_list's intrusive_slist _head member is AT address 0x7d406d1e0ab0
+  2. The ring_buffer writes its data storage to 0x7d406d1e0ab0
+  3. After the write, _head is corrupted to 0x2a (42 decimal - the byte we enqueued!)
+
+  The root cause: Both allocators allocated the SAME memory address:
+  - queue_allocator allocated a block for queue_handle at an address where its _head
+  member ends up at 0x7d406d1e0ab0
+  - local_allocator directly allocated a block for ring_buffer storage at 0x7d406d1e0ab0
+
+  This is double allocation - the same memory is owned by two different structures!
+
+  Looking at your allocator design:
+  - queue_allocator = growing_pool(8, 32, local_allocator) - allocates segments from
+  local_allocator, subdivides into 8-byte blocks
+  - list_allocator = growing_pool(8, 32, local_allocator) - same thing
+  - ring_buffer allocates directly from local_allocator (16-byte blocks)
+
+  The bug is that when growing_pool allocates a segment from local_allocator and
+  subdivides it, those subdivisions can later collide with direct allocations from
+  local_allocator.
+
+  The issue: The local_buffer's freelist and the growing_pool's segment management
+  aren't properly coordinating. When a growing_pool allocates a 16-byte block from
+  local_buffer as a segment, that block should be marked as "in use" by local_buffer.
+  But somehow, local_buffer later reallocates that same block (or part of it) directly
+  to the ring_buffer!
+
+  Let me verify this theory by checking if there's a freelist corruption or double-free
+  issue. Can you show me the output of the first test (CreateAndDestroy) which passes?
+  That will help us see the difference in allocation patterns.
+
+  ★ Insight ─────────────────────────────────────
+  Memory aliasing detective work: The debug output revealed that pointer corruption
+  (manager_id=5, segment_id=1, offset=0 encoding 0x2a=42) wasn't random garbage—it was
+  the exact byte value being enqueued! This pointed to a memory overlap where data
+  writes overwrote pointer metadata.
+
+  Bitfield forensics: The corrupted value 0b00101010 decoded perfectly into the
+  segmented_ptr's bitfield layout, proving the 1-byte pointer was being treated as data
+  storage.
+
+  Address collision: Two separate allocators (queue_allocator's growing_pool and direct
+  local_allocator allocations) returned the same address, causing the queue's internal
+  linked list pointer to overlap with ring_buffer payload data.
+  ─────────────────────────────────────────────────
+
+  What's the relationship between local_allocator block size (16 bytes) and the
+  growing_pool block size (8 bytes)? Could there be an issue with how pointer arithmetic
+   works when a 16-byte block is subdivided into two 8-byte blocks?

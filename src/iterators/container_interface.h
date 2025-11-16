@@ -10,15 +10,17 @@
 // Use for: forward-only containers (singly-linked lists, etc.)
 // ============================================================================
 
-template <typename derived> class forward_container_iterator_interface {
+template <typename derived> class forward_iterator_interface {
 public:
-  template <typename T> constexpr auto cbegin(this auto const &self) noexcept {
+  // cbegin/cend work on both const and non-const containers, always return
+  // const iterators
+  constexpr auto cbegin(this auto &self) noexcept {
     using iterator = decltype(self.begin());
     using const_iterator = std::const_iterator<iterator>;
     return const_iterator(self.begin());
   }
 
-  constexpr auto cend(this auto const &self) noexcept {
+  constexpr auto cend(this auto &self) noexcept {
     using iterator = decltype(self.end());
     using const_iterator = std::const_iterator<iterator>;
     return const_iterator(self.end());
@@ -35,8 +37,8 @@ public:
 // ============================================================================
 
 template <typename derived>
-class bidirectional_container_iterator_interface
-    : public forward_container_iterator_interface<derived> {
+class bidirectional_iterator_interface
+    : public forward_iterator_interface<derived> {
 public:
   constexpr auto rbegin(this auto &self) noexcept {
     using iterator = decltype(self.begin());
@@ -50,13 +52,13 @@ public:
     return reverse_iterator(self.begin());
   }
 
-  constexpr auto crbegin(this auto const &self) noexcept {
+  constexpr auto crbegin(this auto &self) noexcept {
     using reverse_iterator = decltype(self.rbegin());
     using const_reverse_iterator = std::const_iterator<reverse_iterator>;
     return const_reverse_iterator(self.rbegin());
   }
 
-  constexpr auto crend(this auto const &self) noexcept {
+  constexpr auto crend(this auto &self) noexcept {
     using reverse_iterator = decltype(self.rend());
     using const_reverse_iterator = std::const_iterator<reverse_iterator>;
     return const_reverse_iterator(self.rend());
@@ -80,7 +82,7 @@ public:
 
 template <typename derived> class before_begin_iterator_interface {
 public:
-  constexpr auto cbefore_begin(this auto const &self) noexcept {
+  constexpr auto cbefore_begin(this auto &self) noexcept {
     using iterator = decltype(self.before_begin());
     using const_iterator = std::const_iterator<iterator>;
     return const_iterator(self.before_begin());

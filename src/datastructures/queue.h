@@ -12,7 +12,7 @@ struct queue_allocator_storage {
 
 // FIFO queue implemented as a linked list of ring buffers.
 template <is_nothrow T, size_t ring_buffer_capacity,
-          homogenous local_buffer_type, homogenous dynamic_buffer_type>
+          is_homogenous local_buffer_type, is_homogenous dynamic_buffer_type>
 class queue {
 public:
   using ring_buffer_type =
@@ -49,7 +49,12 @@ public:
     storage::_list_alloc = list_alloc;
   }
 
-  ~queue() { clear(); }
+  ~queue() {
+    clear();
+    // Clear static storage to prevent stale allocator pointers
+    storage::_local_alloc = nullptr;
+    storage::_list_alloc = nullptr;
+  }
 
   queue(const queue &) = delete;
   queue &operator=(const queue &) = delete;
@@ -111,9 +116,14 @@ public:
   size_t size() const noexcept {
     size_t total = 0;
     int counter = 0;
-    std::println("before iteration", counter++);
-    for (const auto &node : _list) {
-      std::println("{}", counter++);
+    // for (const auto &node : _list) {
+    //   total += node.buffer.size();
+    // }
+    auto begin = _list.begin();
+    auto end = _list.end();
+
+    for (auto it = begin; it != end; ++it) {
+      const auto &node = *it; // dereference iterator
       total += node.buffer.size();
     }
     return total;

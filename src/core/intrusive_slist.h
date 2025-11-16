@@ -15,15 +15,15 @@ concept intrusive_node = requires(node_ptr ptr) {
 
 template <intrusive_node node_ptr>
 class intrusive_slist
-    : public forward_container_iterator_interface<intrusive_slist<node_ptr>> {
+    : public forward_iterator_interface<intrusive_slist<node_ptr>> {
 public:
   using value_type =
       std::remove_reference_t<decltype(*std::declval<node_ptr>())>;
   using size_type = std::size_t;
 
 private:
-  node_ptr _head = nullptr;
-  node_ptr _tail = nullptr;
+  node_ptr _head{nullptr};
+  node_ptr _tail{nullptr};
   size_type _count{0};
 
 public:
@@ -38,6 +38,7 @@ public:
   void push_front(node_ptr node) noexcept {
     node->next = _head;
     _head = node;
+
     if (_tail == nullptr) { _tail = node; }
     ++_count;
   }
@@ -106,7 +107,7 @@ public:
 
   class iterator : public forward_iterator_facade<value_type> {
     friend class intrusive_slist;
-    node_ptr _current = nullptr; // Use = instead of {} in default constructor
+    node_ptr _current{nullptr};
 
   public:
     iterator() = default;
@@ -120,9 +121,14 @@ public:
     node_ptr node() const noexcept { return _current; }
   };
 
-  iterator begin() const noexcept { return iterator(_head); }
+  iterator begin() const noexcept {
+    // Read _head's raw bytes
+    const unsigned char *bytes =
+        reinterpret_cast<const unsigned char *>(&_head);
+    return iterator(_head);
+  }
   iterator end() const noexcept {
-    node_ptr null_ptr = nullptr; // Force explicit construction with = syntax
+    node_ptr null_ptr{nullptr};
     return iterator(null_ptr);
   }
 

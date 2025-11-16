@@ -1,6 +1,6 @@
 # Sequential FIFO Queue
 
-> ⚠️This readme may not be entirely in sync with the state of the project, as the project WIP
+> ⚠️This readme may not be entirely in sync with the state of the project, as the project is WIP
 
 This project implements a queue datastructure specialized for extremely memory-constrained environments. The design prioritizes minimal memory overhead while maintaining standard queue semantics and RAII principles.
 
@@ -45,29 +45,27 @@ The top-level allocator that manages a fixed pool of uniformly-sized memory bloc
 Allocator that dynamically grows by allocating new segment managers on demand. Provides effectively unlimited capacity (within upstream limits) while maintaining compact pointer representations using growing_pool_ptr.
 
 **Segment Manager**
-Manages a fixed number of memory segments, each subdivided into uniform blocks. Provides the foundation for growing_pool's scalability, is only for interal use by the `growing_pool`.
+Manages a fixed number of memory segments, each subdivided into uniform blocks. Provides the foundation for growing_pool's scalability, is intended only for interal use by the `growing_pool`.
 
 ### Static Allocator Pattern
 
-All datastructures use static allocator pointers rather than per-instance pointers. Since each queue type is templated on its allocator types, all instances of a given queue configuration naturally share the same allocators. This pattern eliminates 24 bytes of allocator pointer overhead per queue instance.
-
-A typical queue instance consists of just the offset_list's head and tail segmented pointers, totaling approximately 4 bytes. This represents a 85% reduction compared to a traditional implementation with 8-byte pointers and per-instance allocator references.
+All datastructures use static allocator pointers rather than per-instance pointers. Since each queue type is templated on its allocator types, all instances of a given queue configuration naturally share the same allocators.
+A typical queue instance consists of just the offset_list's head and tail segmented pointers, totaling approximately 4 bytes.
 
 ---
 
 ## Iterator Library
 
-### Modern C++23 Iterator Facades
+### C++23 Iterator Facades
 
-The project includes a standalone, header-only iterator library (`src/iterators/`) leveraging C++23's **deducing this** feature to provide clean, efficient iterator and container interfaces.
+The project includes a standalone, header-only iterator library (`src/iterators/`) leveraging C++23's **deducing this** to provide clean, efficient iterator and container interfaces.
 
 **Key Features:**
 
 - **6 Iterator Facades**: input, output, forward, bidirectional, random-access, contiguous
 - **3 Container Interfaces**: Eliminate boilerplate for begin/end/rbegin/rend methods
-- **80-90% Code Reduction**: Build custom iterators from 3-4 primitives instead of 15+ operators
+- **Boilerplate Reduction**: Build custom iterators from 3-4 primitives instead of 15+ operators
 - **Zero Overhead**: Header-only, no runtime cost
-- **Modern C++23**: Superior to Boost.Iterator with cleaner syntax
 
 **Example:**
 
@@ -119,10 +117,10 @@ A CMake Preset for Linux is provided. The project has been tested only with the 
 cmake --preset=linux_debug
 cmake --build --preset=linux_debug --target allocators_test
 cmake --build --preset=linux_debug --target datastructures_test
-cmake --build --preset=linux_debug --target c_api
-```
+# deprecated for now
+# cmake --build --preset=linux_debug --target c_api ```
 
-### Build with Precompiled Headers (4-6x Faster)
+### Build with Precompiled Headers 
 
 ```bash
 cmake --preset=linux_debug -DITERATORS_USE_PCH=ON
@@ -154,36 +152,9 @@ The CMake configuration includes a directive to generate a compile database, whi
 
 ---
 
-## Code Metrics
-
-**Iterator Boilerplate Reduction:**
-
-- offset_list: 50 lines → 12 lines
-- ring_buffer: 85 lines → 15 lines
-- intrusive_slist: 45 lines → 12 lines
-- **Total**: ~265 lines eliminated across 4 containers
-
-**Memory Overhead:**
-
-- Traditional queue instance: ~32 bytes (8-byte pointers + allocator pointers)
-- This implementation: ~4 bytes (segmented pointers only)
-- **Reduction**: 85% smaller per-instance overhead
-
----
-
 ## Requirements
 
 - **Compiler**: C++23 support required
   - GCC 13+ or Clang 16+ recommended
 - **CMake**: 3.16+ (for precompiled headers support)
 - **Platform**: Linux (tested)
-
----
-
-## Design Philosophy
-
-1. **Zero-cost abstractions**: Template-based design with no runtime overhead
-2. **Memory efficiency**: Compact representations using custom pointer types
-3. **Modern C++**: Leverage C++23 features (deducing this, concepts, std::expected)
-4. **Embedded-friendly**: No exceptions, no heap allocations outside controlled pool
-5. **Reusable components**: Iterator library designed as standalone, redistributable module

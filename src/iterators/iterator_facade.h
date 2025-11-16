@@ -172,11 +172,13 @@ public:
 // ============================================================================
 // Random Access Iterator Facade (C++23 Deducing This)
 // ============================================================================
-// Adds to bidirectional_iterator_facade:
+// Derived class must implement (in addition to dereference() and equals()):
 //   - void advance(difference_type n)
 //   - difference_type distance_to(const Derived&) const
 //
 // Provides: +, -, +=, -=, [], <, >, <=, >=, <=>
+// Also provides: increment() and decrement() (automatically delegate to
+// advance)
 // ============================================================================
 
 template <typename value, typename reference = value &,
@@ -186,6 +188,11 @@ class random_access_iterator_facade
 public:
   using iterator_category = std::random_access_iterator_tag;
   using difference_type = std::ptrdiff_t;
+
+  // Provide increment/decrement as special cases of advance
+  // Random access iterators only need to implement advance()
+  constexpr void increment(this auto &self) noexcept { self.advance(1); }
+  constexpr void decrement(this auto &self) noexcept { self.advance(-1); }
 
   constexpr auto &operator+=(this auto &self, difference_type n) noexcept {
     self.advance(n);
@@ -209,9 +216,12 @@ public:
     return tmp;
   }
 
-  constexpr difference_type operator-(this auto const &self,
-                                      auto const &other) noexcept {
-    return -other.distance_to(self);
+  // Iterator difference - constrained to same iterator type to avoid ambiguity
+  // with arithmetic
+  template <typename Self>
+  constexpr difference_type operator-(this Self const &self,
+                                      Self const &other) noexcept {
+    return other.distance_to(self);
   }
 
   constexpr decltype(auto) operator[](this auto const &self,
@@ -224,8 +234,8 @@ public:
   constexpr std::strong_ordering operator<=>(this auto const &self,
                                              auto const &other) noexcept {
     auto dist = self.distance_to(other);
-    if (dist < 0) { return std::strong_ordering::less; }
-    if (dist > 0) { return std::strong_ordering::greater; }
+    if (dist > 0) { return std::strong_ordering::less; }
+    if (dist < 0) { return std::strong_ordering::greater; }
     return std::strong_ordering::equal;
   }
 };
@@ -267,8 +277,12 @@ public:
 };
 
 // ============================================================================
-// Helper: Override decrement() for random access to use advance(-1)
+// Implementation Note: Random Access Iterators
 // ============================================================================
-// Just add this to your random access iterator class:
-//   void decrement() { advance(-1); }
+// Random access iterators automatically get increment() and decrement() by
+// delegating to advance(1) and advance(-1). You only need to implement:
+//   - void advance(difference_type n)
+//   - difference_type distance_to(const Derived&) const
+//   - T& dereference() const
+//   - bool equals(const Derived&) const
 // ============================================================================

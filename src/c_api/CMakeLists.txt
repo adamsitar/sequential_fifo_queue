@@ -21,7 +21,7 @@ target_include_directories(
 
 target_link_libraries(
   ${LIB_NAME}
-  PRIVATE
+  PUBLIC
   core
   allocators
   datastructures
@@ -36,6 +36,11 @@ add_executable(
   ${TEST_FILES}
 )
 find_package(GTest REQUIRED)
+target_include_directories(
+  ${LIB_NAME}_test
+  PRIVATE
+  ${CMAKE_SOURCE_DIR}/src/allocators
+)
 target_link_libraries(
   ${LIB_NAME}_test PRIVATE
   ${LIB_NAME}

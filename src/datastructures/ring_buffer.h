@@ -1,4 +1,5 @@
 #pragma once
+#include <allocators/test_allocator.h>
 #include <compare>
 #include <cstddef>
 #include <iterators/container_interface.h>
@@ -10,20 +11,24 @@ template <typename allocator_type> struct ring_buffer_allocator_storage {
 };
 
 // Fixed-capacity circular buffer
-template <is_nothrow T, std::size_t count, homogenous allocator_type>
-class ring_buffer
-    : public bidirectional_container_iterator_interface<
-          ring_buffer<T, count, allocator_type>> {
+template <is_nothrow T, std::size_t max_element_count,
+          is_homogenous allocator_type = simple_test_allocator>
+class ring_buffer : public bidirectional_iterator_interface<
+                        ring_buffer<T, max_element_count, allocator_type>> {
 public:
   using value_type = T;
-  using size_type = smallest_t<count>;
+  using size_type = smallest_t<max_element_count>;
   using storage = ring_buffer_allocator_storage<allocator_type>;
 
-  static constexpr std::size_t capacity_v = count;
-  static constexpr std::size_t storage_bytes_v = count * sizeof(T);
+  static constexpr std::size_t capacity_v = max_element_count;
+  static constexpr std::size_t storage_bytes_v = max_element_count * sizeof(T);
 
-  static_assert(count > 0, "ring_buffer count must be > 0");
+  static_assert(max_element_count > 0, "ring_buffer count must be > 0");
   static_assert(sizeof(T) > 0, "T must be a complete type");
+
+private:
+  // Static default allocator instance for default-constructed containers
+  inline static allocator_type default_allocator{};
 
   // accessors to storage, with respect to lifetime rules
   constexpr void *construction_location(size_type index) const noexcept {
@@ -34,24 +39,25 @@ public:
   constexpr T *storage_ptr() const noexcept {
     return static_cast<T *>(static_cast<void *>(_storage));
   }
-
-private:
-  size_type _head{0};     // Index of first element (oldest)
-  size_type _tail{0};     // Index of next empty slot
-  size_type _free{count}; // Number of free slots
+  size_type _head{0};                 // Index of first element (oldest)
+  size_type _tail{0};                 // Index of next empty slot
+  size_type _free{max_element_count}; // Number of free slots
   allocator_type::pointer_type _storage;
 
   constexpr void advance_tail() noexcept {
-    _tail = (_tail + 1) % count;
+    _tail = (_tail + 1) % max_element_count;
     --_free;
   }
 
   constexpr void advance_head() noexcept {
-    _head = (_head + 1) % count;
+    _head = (_head + 1) % max_element_count;
     ++_free;
   }
 
 public:
+  // Default constructor - uses static test allocator
+  ring_buffer() : ring_buffer(&default_allocator) {}
+
   explicit ring_buffer(allocator_type *alloc) {
     fatal(alloc == nullptr, "Allocator cannot be null");
 
@@ -75,9 +81,7 @@ public:
               allocator_type *alloc = nullptr) noexcept
       : _head(other._head), _tail(other._tail), _free(other._free) {
     // Update static allocator if provided
-    if (alloc != nullptr) {
-      storage::_allocator = alloc;
-    }
+    if (alloc != nullptr) { storage::_allocator = alloc; }
 
     fatal(storage::_allocator == nullptr, "Allocator not set");
 
@@ -104,7 +108,8 @@ public:
     requires std::same_as<std::remove_cvref_t<U>, T>
   constexpr result<> push(U &&value) {
     fail(is_full(), "Cannot push to full ring_buffer");
-    new (construction_location(_tail)) T(std::forward<U>(value));
+    void *write_loc = construction_location(_tail);
+    new (write_loc) T(std::forward<U>(value));
     advance_tail();
     return {};
   }
@@ -136,38 +141,38 @@ public:
   // Access back element (newest).
   auto &&back(this auto &&self) {
     fatal(self.empty(), "back() called on empty ring_buffer");
-    auto back_pos = (self._tail == 0) ? (count - 1) : (self._tail - 1);
+    auto back_pos =
+        (self._tail == 0) ? (max_element_count - 1) : (self._tail - 1);
     return *(self.storage_ptr() + back_pos);
   }
 
   // Access element at logical index (no bounds checking).
   auto &&operator[](this auto &&self, size_type index) {
-    return *(self.storage_ptr() + ((self._head + index) % count));
+    return *(self.storage_ptr() + ((self._head + index) % max_element_count));
   }
 
   // Access element at logical index (with bounds checking).
   auto &&at(this auto &&self, size_type index) noexcept {
-    if (index >= self.size()) {
-      fatal("ring_buffer::at: index out of range");
-    }
+    if (index >= self.size()) { fatal("ring_buffer::at: index out of range"); }
     return self[index];
   }
 
   bool is_full() const noexcept { return _free == 0; }
-  bool empty() const noexcept { return _free == count; }
-  size_type size() const noexcept { return count - _free; }
-  size_type capacity() const noexcept { return count; }
+  bool empty() const noexcept { return _free == max_element_count; }
+  size_type size() const noexcept { return max_element_count - _free; }
+  size_type capacity() const noexcept { return max_element_count; }
   size_type get_free() const noexcept { return _free; }
 
   class iterator;
 
   iterator begin() noexcept { return iterator(this, _head); }
   iterator end() noexcept { return iterator(this, _tail); }
-  // cbegin/cend/rbegin/rend/crbegin/crend provided by container_iterator_interface
+  // cbegin/cend/rbegin/rend/crbegin/crend provided by
+  // container_iterator_interface
 };
 
 // Random access iterator for ring_buffer.
-template <is_nothrow T, std::size_t count, homogenous allocator_type>
+template <is_nothrow T, std::size_t count, is_homogenous allocator_type>
 class ring_buffer<T, count, allocator_type>::iterator
     : public random_access_iterator_facade<T> {
 public:
@@ -186,9 +191,7 @@ public:
   void advance(difference_type n) noexcept {
     auto new_pos = (static_cast<difference_type>(_pos) + n);
     new_pos %= static_cast<difference_type>(count);
-    if (new_pos < 0) {
-      new_pos += count;
-    }
+    if (new_pos < 0) { new_pos += count; }
     _pos = static_cast<size_type>(new_pos);
   }
 
@@ -206,9 +209,7 @@ private:
    * Essential for proper comparison in circular buffers.
    */
   [[nodiscard]] constexpr difference_type rank() const noexcept {
-    if (_buffer == nullptr) {
-      return 0;
-    }
+    if (_buffer == nullptr) { return 0; }
     return (_pos - _buffer->_head + count) % count;
   }
 
