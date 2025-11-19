@@ -1,6 +1,6 @@
 # Iterator Library
 
-A lightweight, header-only iterator library leveraging C++23's **deducing this** feature to provide clean, efficient iterator and container interfaces.
+A lightweight, header-only iterator library which provides clean, efficient iterator and container interfaces.
 
 ## Overview
 
@@ -8,8 +8,6 @@ This library provides two main components:
 
 1. **Iterator Facades** (`iterator_facade.h`) - Build custom iterators from minimal primitives
 2. **Container Interfaces** (`container_interface.h`) - Eliminate container boilerplate
-
-Inspired by Boost.Iterator but modernized with C++23 features for superior ergonomics and zero overhead.
 
 ---
 
@@ -293,19 +291,6 @@ class forward_list
     // cbeforebegin/cbegin/cend provided
 };
 ```
-
----
-
-## Key Advantages Over Boost.Iterator
-
-| Feature | Boost.Iterator | This Library |
-|---------|----------------|--------------|
-| **CRTP Syntax** | Explicit `derived()` casts | Deducing this (automatic) |
-| **Template Parameters** | 5+ parameters | 1-3 parameters |
-| **Boilerplate** | ~100 lines/iterator | ~10 lines/iterator |
-| **Container Interface** | Not provided | Included |
-| **Standard Compliance** | C++03/11 | C++23 |
-| **Dependencies** | Boost ecosystem | Header-only, standalone |
 
 ---
 

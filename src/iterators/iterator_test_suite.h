@@ -2,13 +2,8 @@
 
 #include <algorithm>
 #include <compare>
-#include <concepts>
-#include <cstddef>
 #include <gtest/gtest.h>
 #include <iterator>
-#include <new>
-#include <optional>
-#include <type_traits>
 #include <vector>
 
 // ============================================================================
@@ -31,8 +26,7 @@
 //   - Type aliases: container_type, value_type
 //   - Static populate() method to insert test data
 //
-// NOTE: With default-constructible containers, adapters are now dramatically
-// simpler - no manual lifecycle management needed!
+// NOTE: Containers must be default constructible
 // ============================================================================
 
 template <typename Adapter>
@@ -290,6 +284,8 @@ protected:
 };
 
 TYPED_TEST_SUITE_P(GenericBidirectionalIteratorTestSuite);
+GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(
+    GenericBidirectionalIteratorTestSuite);
 
 // Pre-decrement tests
 TYPED_TEST_P(GenericBidirectionalIteratorTestSuite, PreDecrementMovesBackward) {

@@ -23,8 +23,8 @@ class basic_thin_ptr : public pointer_operations<T> {
   using storage = thin_ptr_storage<unique_tag, offset_type>;
   offset_type _offset;
 
-  // Null sentinel is max value of offset_type (since offset_type is now a primitive)
-  static constexpr offset_type null_sentinel = std::numeric_limits<offset_type>::max();
+  static constexpr offset_type null_sentinel =
+      std::numeric_limits<offset_type>::max();
 
   template <typename, typename, typename, typename> friend class basic_thin_ptr;
   friend class pointer_operations<T>;

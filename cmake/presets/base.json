@@ -31,5 +31,12 @@
         "CMAKE_CXX_CLANG_TIDY": "clang-tidy"
       }
     }
+  ],
+  "buildPresets": [
+    {
+      "name": "_base_build",
+      "hidden": true,
+      "jobs": 0
+    }
   ]
 }

@@ -73,8 +73,10 @@ public:
 
   ~offset_list() {
     clear();
-    // Clear static storage to prevent stale allocator pointers
-    storage::_allocator = nullptr;
+    // NOTE: Don't clear static storage here when using multiple instances.
+    // All instances of the same offset_list type share static storage, so
+    // clearing it would break other instances. The storage is overwritten on construction.
+    // storage::_allocator = nullptr;
   }
 
   bool is_empty() const noexcept { return _list.empty(); }

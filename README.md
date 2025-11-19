@@ -2,20 +2,23 @@
 
 > ⚠️This readme may not be entirely in sync with the state of the project, as the project is WIP
 
-This project implements a queue datastructure specialized for extremely memory-constrained environments. The design prioritizes minimal memory overhead while maintaining standard queue semantics and RAII principles.
+This project implements a queue datastructure specialized for extremely memory-constrained environments.
 
-## Project Structure
+## Structure
 
-The project consists of three main libraries:
+The project consists these components:
 
-- **`src/iterators/`** - Standalone C++23 iterator library (header-only)
-- **`src/allocators/`** - Memory allocators for constrained environments
-- **`src/datastructures/`** - Queue, ring buffer, and linked list implementations
-- **`src/core/`** - Core types, pointer abstractions, and utilities
+- **`src/allocators/`** - Memory allocators that implement optimizations via usage of custom pointers.
+- **`src/datastructures/`** - Datastructures that support the usage of custom pointers.
+- **`src/result/`** - Error handling + logging library.
+- **`src/iterators/`** - Iterator facade library, essentially helper templates to reduce iterator boilerplate (+ generic test suite).
+- **`src/core/`** - Core types, utilities.
+- **`src/c_api/`** - Deprecated C pimpl pattern.
+- **`src/pch/`** - Precompiled header support, may or may not work.
 
 ---
 
-## Architecture Overview
+## Overview
 
 The queue is built as a linked list of ring buffers, combining the dynamic growth of linked lists with the cache-friendly locality of fixed-size circular buffers. This hybrid approach provides amortized O(1) operations while minimizing metadata overhead.
 
@@ -54,41 +57,6 @@ A typical queue instance consists of just the offset_list's head and tail segmen
 
 ---
 
-## Iterator Library
-
-### C++23 Iterator Facades
-
-The project includes a standalone, header-only iterator library (`src/iterators/`) leveraging C++23's **deducing this** to provide clean, efficient iterator and container interfaces.
-
-**Key Features:**
-
-- **6 Iterator Facades**: input, output, forward, bidirectional, random-access, contiguous
-- **3 Container Interfaces**: Eliminate boilerplate for begin/end/rbegin/rend methods
-- **Boilerplate Reduction**: Build custom iterators from 3-4 primitives instead of 15+ operators
-- **Zero Overhead**: Header-only, no runtime cost
-
-**Example:**
-
-```cpp
-// Before: ~50 lines of boilerplate
-class my_iterator {
-  // 5 typedefs + 15 operators...
-};
-
-// After: ~12 lines using facade
-class my_iterator : public forward_iterator_facade<T> {
-  T& dereference() const { return *_ptr; }
-  void increment() { ++_ptr; }
-  bool equals(const my_iterator& o) const { return _ptr == o._ptr; }
-};
-```
-
-**Documentation:**
-
-- Iterator Library: `src/iterators/README.md`
-
----
-
 ## Memory Layout
 
 All metadata is stored within allocated blocks. The local buffer contains:
@@ -101,22 +69,18 @@ The entire queue system operates within a fixed memory budget determined by the 
 
 ---
 
-## Error Handling
-
-All allocation operations return custom result types rather than throwing exceptions, making the code suitable for freestanding and embedded environments where exception support may be unavailable. The result type is a wrapper for std::expected, with additional features for ergonomics.
-
----
-
 ## Building
 
 A CMake Preset for Linux is provided. The project has been tested only with the debug configuration using the Clang (version 21) compiler.
 
 ### Basic Build
 
+> ⚠️The `datastructures_test` suite contains the exact tests/cases realted to the assignment
+
 ```bash
 cmake --preset=linux_debug
 cmake --build --preset=linux_debug --target allocators_test
-cmake --build --preset=linux_debug --target datastructures_test
+cmake --build --preset=linux_debug --target datastructures_test 
 # deprecated for now
 # cmake --build --preset=linux_debug --target c_api ```
 
@@ -130,24 +94,18 @@ cmake --build --preset=linux_debug
 ### Running Tests
 
 ```bash
+# Datastructure tests
+./build/linux_debug/src/datastructures/datastructures_test
 # Allocator tests
 ./build/linux_debug/src/allocators/allocators_test
 
-# Datastructure tests
-./build/linux_debug/src/datastructures/datastructures_test
 ```
 
 ---
 
 ## Library Distribution
 
-All libraries are distributed as header-only INTERFACE targets:
-
-- **`iterators`** - Standalone iterator library (C++23 only dependency)
-- **`core`** - Core types and utilities
-- **`allocators`** - Memory allocators
-- **`datastructures`** - Queue, ring buffer, offset list
-
+All libraries are distributed as header-only INTERFACE targets.
 The CMake configuration includes a directive to generate a compile database, which works with clangd LSP server.
 
 ---

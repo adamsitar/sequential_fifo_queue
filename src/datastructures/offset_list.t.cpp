@@ -1,3 +1,4 @@
+#include <cmath>
 #include <growing_pool.h>
 #include <gtest/gtest.h>
 #include <iterators/iterator_test_suite.h>
@@ -248,7 +249,6 @@ TEST_F(OffsetListTest, CanHandleMultipleAllocations) {
   // const int num_elements = test_allocator::max_block_count - 2;
   const int num_elements = 32;
   for (int i = 0; i < num_elements; ++i) {
-    log("pushing i: {}", i);
     auto result = list.push_front(i);
     ASSERT_TRUE(result.has_value()) << "Failed to allocate element " << i;
   }

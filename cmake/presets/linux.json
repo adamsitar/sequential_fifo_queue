@@ -54,19 +54,23 @@
   "buildPresets": [
     {
       "name": "linux_debug",
-      "configurePreset": "linux_debug"
+      "configurePreset": "linux_debug",
+      "inherits": "_base_build"
     },
     {
       "name": "linux_release",
-      "configurePreset": "linux_release"
+      "configurePreset": "linux_release",
+      "inherits": "_base_build"
     },
     {
       "name": "linux_coverage",
-      "configurePreset": "linux_coverage"
+      "configurePreset": "linux_coverage",
+      "inherits": "_base_build"
     },
     {
       "name": "format",
       "configurePreset": "linux_debug",
+      "inherits": "_base_build",
       "targets": [
         "format"
       ]

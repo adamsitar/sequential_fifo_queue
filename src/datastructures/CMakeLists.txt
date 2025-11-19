@@ -21,6 +21,7 @@ add_executable(
   "offset_list.t.cpp"
   "ring_buffer.t.cpp"
   "queue.t.cpp"
+  "queue_assignment.t.cpp"
   # ${TEST_FILES}
 )
 find_package(GTest REQUIRED)

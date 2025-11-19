@@ -27,10 +27,9 @@ public:
   static_assert(sizeof(T) > 0, "T must be a complete type");
 
 private:
-  // Static default allocator instance for default-constructed containers
+  // for default-constructed containers
   inline static allocator_type default_allocator{};
 
-  // accessors to storage, with respect to lifetime rules
   constexpr void *construction_location(size_type index) const noexcept {
     auto *base = static_cast<std::byte *>(static_cast<void *>(_storage));
     return base + sizeof(T) * index;
@@ -55,13 +54,10 @@ private:
   }
 
 public:
-  // Default constructor - uses static test allocator
   ring_buffer() : ring_buffer(&default_allocator) {}
 
   explicit ring_buffer(allocator_type *alloc) {
     fatal(alloc == nullptr, "Allocator cannot be null");
-
-    // Always update static allocator (handles allocator replacement)
     storage::_allocator = alloc;
 
     auto result = storage::_allocator->allocate_block();
@@ -80,16 +76,12 @@ public:
   ring_buffer(const ring_buffer &other,
               allocator_type *alloc = nullptr) noexcept
       : _head(other._head), _tail(other._tail), _free(other._free) {
-    // Update static allocator if provided
     if (alloc != nullptr) { storage::_allocator = alloc; }
-
     fatal(storage::_allocator == nullptr, "Allocator not set");
 
     auto result = storage::_allocator->allocate_block();
     fatal(!result, "Failed to allocate ring_buffer storage");
     _storage = *result;
-
-    // TODO: If needed, implement element-by-element copy
   }
 
   ring_buffer &operator=(const ring_buffer &) = delete;
@@ -185,7 +177,6 @@ public:
   iterator(ring_buffer *buffer, size_type pos) noexcept
       : _buffer(buffer), _pos(pos) {}
 
-  // CRTP primitives for random_access_iterator_facade
   T &dereference() const noexcept { return *(_buffer->storage_ptr() + _pos); }
 
   void advance(difference_type n) noexcept {
@@ -204,11 +195,8 @@ public:
   }
 
 private:
-  /**
-   * @brief Calculate logical position relative to begin().
-   * Essential for proper comparison in circular buffers.
-   */
-  [[nodiscard]] constexpr difference_type rank() const noexcept {
+  // Calculate logical position relative to begin().
+  difference_type rank() const noexcept {
     if (_buffer == nullptr) { return 0; }
     return (_pos - _buffer->_head + count) % count;
   }

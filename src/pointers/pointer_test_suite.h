@@ -1,9 +1,9 @@
 #pragma once
 
-#include <gtest/gtest.h>
 #include <algorithm>
 #include <compare>
 #include <cstddef>
+#include <gtest/gtest.h>
 #include <new>
 #include <vector>
 
@@ -15,7 +15,7 @@
 // comparison, dereferencing, and null handling.
 //
 // Usage:
-//   1. Create PointerAdapter for your pointer type
+//   1. Create PointerAdapter for pointer type
 //   2. Add adapter to appropriate type list
 //   3. Tests automatically instantiate for your pointer
 //
@@ -31,12 +31,6 @@
 //   - to_raw(pointer_type) -> raw pointer
 // ============================================================================
 
-// ============================================================================
-// Pointer Operations Test
-// ============================================================================
-// Tests pointer_operations interface: arithmetic, comparison, dereferencing
-// ============================================================================
-
 template <typename PointerAdapter>
 class PointerOperationsTest : public ::testing::Test {
 protected:
@@ -45,10 +39,10 @@ protected:
   using allocator_type = typename PointerAdapter::allocator_type;
 
   allocator_type allocator;
-  alignas(value_type*) std::byte array_storage[sizeof(value_type*)];
+  alignas(value_type *) std::byte array_storage[sizeof(value_type *)];
 
-  value_type*& array() {
-    return *std::launder(reinterpret_cast<value_type**>(array_storage));
+  value_type *&array() {
+    return *std::launder(reinterpret_cast<value_type **>(array_storage));
   }
 
   static constexpr size_t array_size = 10;
@@ -56,7 +50,8 @@ protected:
   void SetUp() override {
     PointerAdapter::setup_allocator(allocator);
     // Allocate and initialize test array
-    new (&array()) value_type*(PointerAdapter::allocate_array(allocator, array_size));
+    new (&array())
+        value_type *(PointerAdapter::allocate_array(allocator, array_size));
     for (size_t i = 0; i < array_size; ++i) {
       array()[i] = static_cast<value_type>(i * 10); // [0, 10, 20, 30, ...]
     }
@@ -130,7 +125,7 @@ TYPED_TEST_P(PointerOperationsTest, PreIncrementAdvances) {
 
 TYPED_TEST_P(PointerOperationsTest, PreIncrementReturnsReference) {
   auto ptr = this->make_ptr(0);
-  auto& ref = ++ptr;
+  auto &ref = ++ptr;
   EXPECT_EQ(&ref, &ptr);
 }
 
@@ -172,7 +167,7 @@ TYPED_TEST_P(PointerOperationsTest, MinusEqualsMovesBackward) {
 
 TYPED_TEST_P(PointerOperationsTest, PlusEqualsReturnsReference) {
   auto ptr = this->make_ptr(0);
-  auto& ref = (ptr += 1);
+  auto &ref = (ptr += 1);
   EXPECT_EQ(&ref, &ptr);
 }
 
@@ -277,36 +272,18 @@ TYPED_TEST_P(PointerOperationsTest, ConversionToRawPointer) {
 
 TYPED_TEST_P(PointerOperationsTest, ConversionToVoidPointer) {
   auto ptr = this->make_ptr(2);
-  void* vptr = static_cast<void*>(ptr);
+  void *vptr = static_cast<void *>(ptr);
   EXPECT_NE(vptr, nullptr);
 }
 
 REGISTER_TYPED_TEST_SUITE_P(
-    PointerOperationsTest,
-    DefaultConstructedIsNull,
-    NullptrConstructedIsNull,
-    ValidPointerIsNotNull,
-    DereferenceReturnsValue,
-    ArrowOperatorWorks,
-    SubscriptOperatorWorks,
-    PreIncrementAdvances,
-    PreIncrementReturnsReference,
-    PostIncrementReturnsOldValue,
-    PreDecrementMovesBackward,
-    PostDecrementReturnsOldValue,
-    PlusEqualsAdvances,
-    MinusEqualsMovesBackward,
-    PlusEqualsReturnsReference,
-    PointerPlusOffset,
-    OffsetPlusPointer,
-    PointerMinusOffset,
-    PointerDifference,
-    EqualityComparison,
-    LessThanComparison,
-    GreaterThanComparison,
-    LessOrEqualComparison,
-    GreaterOrEqualComparison,
-    ThreeWayComparison,
-    ConversionToRawPointer,
-    ConversionToVoidPointer
-);
+    PointerOperationsTest, DefaultConstructedIsNull, NullptrConstructedIsNull,
+    ValidPointerIsNotNull, DereferenceReturnsValue, ArrowOperatorWorks,
+    SubscriptOperatorWorks, PreIncrementAdvances, PreIncrementReturnsReference,
+    PostIncrementReturnsOldValue, PreDecrementMovesBackward,
+    PostDecrementReturnsOldValue, PlusEqualsAdvances, MinusEqualsMovesBackward,
+    PlusEqualsReturnsReference, PointerPlusOffset, OffsetPlusPointer,
+    PointerMinusOffset, PointerDifference, EqualityComparison,
+    LessThanComparison, GreaterThanComparison, LessOrEqualComparison,
+    GreaterOrEqualComparison, ThreeWayComparison, ConversionToRawPointer,
+    ConversionToVoidPointer);

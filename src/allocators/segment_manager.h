@@ -64,7 +64,6 @@ private:
           reinterpret_cast<freelist_type *>(static_cast<void *>(segment_ptr));
       ok(freelist->push(*block, freelist_head, freelist_count));
 
-      // If segment becomes completely empty (all blocks free), return it to upstream
       if (is_full()) {
         ok(upstream->deallocate_block(segment_ptr));
         segment_ptr = nullptr;
@@ -74,7 +73,6 @@ private:
   };
 
 public:
-  // provides_uniform_blocks
   static constexpr size_t block_size = block_size_v;
   static constexpr size_t block_align = block_size_v;
   // reserve for high_water_mark(1) + next pointer (1-2) + padding (0)
@@ -124,12 +122,10 @@ public:
   segment_manager &operator=(segment_manager &&) = delete;
 
   result<block_type *> try_allocate(upstream_t *upstream) noexcept {
-    // Try existing segments first
     for (size_t i = 0; i < _high_water_mark; ++i) {
       if (auto *block = _segments[i].try_allocate()) { return block; }
     }
 
-    // All segments full, allocate a new one
     return allocate_new_segment(upstream);
   }
 
@@ -209,7 +205,8 @@ private:
     for (size_t i = 0; i < max_segments; ++i) {
       if (!_segments[i].is_valid()) { return i; }
     }
-    return "free slot not found";
+    fail("free slot not found").silent();
+    return {};
   }
 
   result<block_type *> allocate_new_segment(upstream_t *upstream) noexcept {
@@ -218,7 +215,6 @@ private:
 
     auto upstream_block = ok(upstream->allocate_block());
     typename upstream_t::pointer_type upstream_ptr = upstream_block;
-
     void *placement_ptr = static_cast<void *>(upstream_ptr);
 
     auto *freelist = new (placement_ptr) freelist_type(

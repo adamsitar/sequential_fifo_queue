@@ -5,7 +5,6 @@
 #include <result/result.h>
 #include <type_traits>
 
-// Compile-time value concepts
 template <size_t... sizes>
 concept is_power_of_two = (... && ((sizes & (sizes - 1)) == 0));
 
@@ -16,11 +15,9 @@ template <size_t... values>
 concept nonzero_power_of_two =
     is_power_of_two<values...> && is_non_zero<values...>;
 
-// Allocator interface concepts
 template <typename T>
 concept memory_resource_like = std::derived_from<T, std::pmr::memory_resource>;
 
-// Provides offset-based addressing
 template <typename T>
 concept provides_offset = requires(const T &alloc) {
   typename T::unique_tag;
@@ -28,7 +25,6 @@ concept provides_offset = requires(const T &alloc) {
   { alloc.base() } -> std::convertible_to<std::byte *>;
 };
 
-// Provides custom pointer type with rebind support
 template <typename T>
 concept provides_pointer = requires {
   typename T::pointer_type;
@@ -61,10 +57,8 @@ template <typename T>
 concept is_homogenous =
     managed<T> && provides_uniform_blocks<T> && provides_pointer<T>;
 
-// Contiguous allocators provide offset-based addressing
 template <typename T>
 concept contiguous_allocator = is_homogenous<T> && provides_offset<T>;
 
-// Type property concepts
 template <typename T>
 concept is_nothrow = std::is_nothrow_destructible_v<T>;

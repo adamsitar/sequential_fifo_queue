@@ -51,9 +51,12 @@ public:
 
   ~queue() {
     clear();
-    // Clear static storage to prevent stale allocator pointers
-    storage::_local_alloc = nullptr;
-    storage::_list_alloc = nullptr;
+    // NOTE: Don't clear static storage here when using multiple instances.
+    // All instances of the same queue type share static storage, so clearing
+    // it would break other instances. The storage is overwritten on
+    // construction.
+    // storage::_local_alloc = nullptr;
+    // storage::_list_alloc = nullptr;
   }
 
   queue(const queue &) = delete;

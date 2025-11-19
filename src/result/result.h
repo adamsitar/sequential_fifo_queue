@@ -17,10 +17,12 @@ template <typename T = void> struct result : public std::expected<T, error> {
   result(const char *msg,
          std::source_location loc = std::source_location::current()) noexcept
       : base(std::unexpected(error::generic)) {
-    log::header("[Fail] Unconditional");
-    log::location(loc);
-    log::message(msg);
-    log::error_code(error::generic);
+    {
+      dbglog::logger<>("Fail: Unconditional", dbglog::color::yellow, loc)
+          .location()
+          .msg(msg)
+          .err(error::generic);
+    }
   }
 };
 
@@ -35,10 +37,12 @@ struct result<T &> : public std::expected<std::reference_wrapper<T>, error> {
   result(const char *msg,
          std::source_location loc = std::source_location::current()) noexcept
       : base(std::unexpected(error::generic)) {
-    log::header("[Fail] Unconditional");
-    log::location(loc);
-    log::message(msg);
-    log::error_code(error::generic);
+    {
+      dbglog::logger<>("Fail: Unconditional", dbglog::color::yellow, loc)
+          .location()
+          .msg(msg)
+          .err(error::generic);
+    }
   }
 
   constexpr T &value(this auto &&self) {
@@ -110,11 +114,13 @@ inline void ok_deref_helper(void_result_tag) {}
 __attribute__((always_inline)) inline void fatal_error(
     const char *expr, error err,
     std::source_location loc = std::source_location::current()) noexcept {
-  log::header("[Fatal]: Result unwrap failed");
-  log::location(loc);
-  log::expression(expr);
-  log::error_code(err);
-  log::stacktrace(2); // Skip log::stacktrace() and fatal_error()
+  {
+    dbglog::logger<>("Fatal: Result unwrap failed", dbglog::color::red, loc)
+        .location()
+        .expr(expr)
+        .err(err)
+        .stacktrace(2);
+  } // Logger destructs here, outputs the log
   std::abort();
 }
 
@@ -156,12 +162,14 @@ public:
 
   // WIP
   template <typename... Args> fail_builder &&ctx(Args &&...args) && {
-    _context_logger = [args_tuple = std::make_tuple(
-                           std::forward<Args>(args)...)]() mutable {
-      std::apply(
-          [](auto &&...a) { log::log_pairs(std::forward<decltype(a)>(a)...); },
-          std::move(args_tuple));
-    };
+    _context_logger =
+        [args_tuple = std::make_tuple(std::forward<Args>(args)...)]() mutable {
+          std::apply(
+              [](auto &&...a) {
+                dbglog::log_pairs(std::forward<decltype(a)>(a)...);
+              },
+              std::move(args_tuple));
+        };
     _has_context = true;
     return std::move(*this);
   }
@@ -178,15 +186,35 @@ public:
 
   template <typename T = void> operator result<T>() && noexcept {
     if (!_silent) {
-      log::header("[Fail]");
-      log::location(_loc);
-      log::condition(_condition);
-      log::error_code(_error_code);
-      if (_message) { log::message(_message); }
-      // if (_has_context && _context_logger) {
-      //   _context_logger();
-      // }
-      if (_log_stacktrace) { log::stacktrace(0); }
+      // Build logger with all options
+      if (_message && _log_stacktrace) {
+        dbglog::logger<>("Fail", dbglog::color::yellow, _loc)
+            .location()
+            .cond(_condition)
+            .err(_error_code)
+            .msg(_message)
+            .stacktrace(0);
+      } else if (_message) {
+        dbglog::logger<>("Fail", dbglog::color::yellow, _loc)
+            .location()
+            .cond(_condition)
+            .err(_error_code)
+            .msg(_message);
+      } else if (_log_stacktrace) {
+        dbglog::logger<>("Fail", dbglog::color::yellow, _loc)
+            .location()
+            .cond(_condition)
+            .err(_error_code)
+            .stacktrace(0);
+      } else {
+        dbglog::logger<>("Fail", dbglog::color::yellow, _loc)
+            .location()
+            .cond(_condition)
+            .err(_error_code);
+      }
+
+      // Call context logger after main logging
+      if (_has_context && _context_logger) { _context_logger(); }
     }
     return std::unexpected(_error_code);
   }
@@ -209,11 +237,13 @@ public:
 __attribute__((always_inline)) inline void fatal_assertion(
     const char *condition_str, const char *message,
     std::source_location loc = std::source_location::current()) noexcept {
-  log::header("[Fatal]");
-  log::location(loc);
-  log::condition(condition_str);
-  log::message(message);
-  log::stacktrace(2); // Skip log::stacktrace() and fatal_assertion()
+  {
+    dbglog::logger<>("Fatal", dbglog::color::red, loc)
+        .location()
+        .cond(condition_str)
+        .msg(message)
+        .stacktrace(2);
+  } // Logger destructs here, outputs the log
   std::abort();
 }
 

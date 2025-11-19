@@ -14,9 +14,7 @@ protected:
   local_alloc upstream;
   seg_manager manager;
 
-  void TearDown() override {
-    manager.cleanup(&upstream);
-  }
+  void TearDown() override { manager.cleanup(&upstream); }
 };
 
 // ============================================================================

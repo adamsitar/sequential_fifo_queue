@@ -25,8 +25,8 @@ public:
   using offset_type = smallest_t<block_count>;
   using block_type = std::array<std::byte, block_size>;
 
-  // Null sentinel is max value of offset_type (since offset_type is now a primitive)
-  static constexpr offset_type null_sentinel = std::numeric_limits<offset_type>::max();
+  static constexpr offset_type null_sentinel =
+      std::numeric_limits<offset_type>::max();
 
   freelist_storage(offset_type &head, offset_type &count) {
     reset(head, count);
@@ -110,8 +110,8 @@ public:
   using offset_type = smallest_t<block_count>;
   using block_type = std::array<std::byte, block_size>;
 
-  // Null sentinel is max value of offset_type (since offset_type is now a primitive)
-  static constexpr offset_type null_sentinel = std::numeric_limits<offset_type>::max();
+  static constexpr offset_type null_sentinel =
+      std::numeric_limits<offset_type>::max();
 
 private:
   offset_type _head{null_sentinel};

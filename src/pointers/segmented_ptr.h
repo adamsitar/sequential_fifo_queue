@@ -104,8 +104,6 @@ public:
     // segment, offset
     // For null pointers, use false as first element (false < true ensures null
     // < valid)
-    // Lexicographic comparison stops at first difference, so when comparing
-    // null to valid, only the bool is examined; the ID values are ignored
     if (is_null_impl()) {
       return std::make_tuple(false, size_t{0}, size_t{0}, size_t{0});
     }
@@ -135,7 +133,6 @@ public:
   }
 
 public:
-  // Rebind this pointer type to a different pointed-to type
   template <typename U>
   using rebind =
       basic_segmented_ptr<U, block_t, offset_count_v, segment_count_v,

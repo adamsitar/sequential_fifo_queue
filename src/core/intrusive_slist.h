@@ -1,10 +1,11 @@
 #pragma once
+#include "types.h"
 #include <cstddef>
 #include <iterators/container_interface.h>
 #include <iterators/iterator_facade.h>
 #include <print>
+#include <result/result.h>
 
-// intrusive linked list for managing pre-allocated nodes.
 template <typename node_ptr>
 concept intrusive_node = requires(node_ptr ptr) {
   { ptr->next } -> std::convertible_to<node_ptr>;
@@ -13,13 +14,13 @@ concept intrusive_node = requires(node_ptr ptr) {
   { *ptr };
 };
 
-template <intrusive_node node_ptr>
+template <intrusive_node node_ptr, size_t max_size = 256>
 class intrusive_slist
     : public forward_iterator_interface<intrusive_slist<node_ptr>> {
 public:
   using value_type =
       std::remove_reference_t<decltype(*std::declval<node_ptr>())>;
-  using size_type = std::size_t;
+  using size_type = smallest_t<max_size>;
 
 private:
   node_ptr _head{nullptr};
@@ -36,6 +37,8 @@ public:
   ~intrusive_slist() = default;
 
   void push_front(node_ptr node) noexcept {
+    fatal(_count >= max_size, "intrusive_slist capacity exceeded");
+
     node->next = _head;
     _head = node;
 
@@ -64,6 +67,8 @@ public:
 
   // Tail-based operations
   void push_back(node_ptr node) noexcept {
+    fatal(_count >= max_size, "intrusive_slist capacity exceeded");
+
     node->next = nullptr;
     if (_tail == nullptr) {
       _head = _tail = node;
@@ -136,6 +141,8 @@ public:
     if (pos.node() == nullptr) {
       push_front(node);
     } else {
+      fatal(_count >= max_size, "intrusive_slist capacity exceeded");
+
       node->next = pos.node()->next;
       pos.node()->next = node;
       if (pos.node() == _tail) { _tail = node; }

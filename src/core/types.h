@@ -21,8 +21,6 @@ template <std::uint64_t N> constexpr auto smallest_underlying_type() {
   }
 }
 
-// Type alias to smallest unsigned integer type that can hold 'value'
-// Use narrow_cast at assignment sites where narrowing protection is needed
 template <std::size_t value>
 using smallest_t = decltype(smallest_underlying_type<value>());
 

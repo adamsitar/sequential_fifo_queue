@@ -4,10 +4,6 @@
 #include <local_buffer.h>
 #include <pointers/pointer_test_suite.h>
 
-// ============================================================================
-// Generic Pointer Test Adapter for growing_pool::pointer_type
-// ============================================================================
-
 struct growing_pool_ptr_adapter {
   using value_type = long;
   using local_alloc = local_buffer(256, 64);
@@ -62,20 +58,12 @@ struct growing_pool_ptr_adapter {
   }
 };
 
-// Instantiate generic pointer operation tests
 using GrowingPoolPtrTypes = ::testing::Types<growing_pool_ptr_adapter>;
 INSTANTIATE_TYPED_TEST_SUITE_P(GrowingPoolPtr, PointerOperationsTest,
                                GrowingPoolPtrTypes);
 
 // ============================================================================
 // growing_pool::pointer_type Specific Tests
-// ============================================================================
-// These tests cover implementation-specific details like ID validation,
-// segment boundary crossing, etc. Generic pointer operations are tested above.
-// ============================================================================
-
-// ============================================================================
-// Test Fixture
 // ============================================================================
 
 class GrowingPoolPtrTest : public ::testing::Test {

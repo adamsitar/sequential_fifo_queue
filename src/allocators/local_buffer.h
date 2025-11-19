@@ -3,6 +3,7 @@
 #include <cstddef>
 #include <cstring>
 #include <freelist.h>
+#include <functional>
 #include <memory_resource>
 #include <pointers/thin_ptr.h>
 #include <print>
@@ -24,6 +25,7 @@ private:
   using freelist_type = freelist<block_size, block_count_t, tag>;
   freelist_type _list{};
   static std::pmr::memory_resource *_upstream;
+  std::function<void()> _on_oom_callback{nullptr};
 
 public:
   using unique_tag = tag;
@@ -32,8 +34,15 @@ public:
   using pointer_type = basic_thin_ptr<block_type, block_type, offset_type, tag>;
 
   result<pointer_type> allocate_block() {
-    auto &block = ok(_list.pop());
-    return pointer_type(&block);
+    auto result = _list.pop();
+    if (!result.has_value()) {
+      if (_on_oom_callback) {
+        _on_oom_callback();
+        std::unreachable();
+      }
+      return result.error();
+    }
+    return pointer_type(&result.value());
   }
 
   result<> deallocate_block(pointer_type ptr) {
@@ -44,7 +53,6 @@ public:
 
     auto res = _list.push(*block_ref);
     if (!res) {
-      // Block doesn't belong to this allocator, return to upstream
       if (_upstream != nullptr) {
         _upstream->deallocate(raw, block_size, block_align);
       }
@@ -58,6 +66,10 @@ public:
 
   unique_local_buffer() { pointer_type::set_base(base()); }
   ~unique_local_buffer() override { pointer_type::set_base(nullptr); }
+
+  void set_oom_callback(std::function<void()> callback) noexcept {
+    _on_oom_callback = callback;
+  }
 
   static void set_upstream(std::pmr::memory_resource *upstream) noexcept {
     _upstream = upstream;

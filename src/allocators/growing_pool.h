@@ -28,7 +28,6 @@ public:
   static constexpr size_t max_managers = max_manager_count_v;
   // static constexpr size_t max_managers = upstream_t::max_block_count;
 
-  // provides_uniform_blocks
   static constexpr size_t max_block_count =
       manager_type::max_block_count * max_managers;
   static constexpr size_t total_size = block_size_v * max_block_count;
@@ -134,20 +133,14 @@ public:
 
     auto *block = static_cast<block_type *>(static_cast<void *>(ptr));
     ok(manager->deallocate(block, _upstream));
-
     // TODO: deallocate empty managers to reclaim memory
 
     return {};
   }
 
-  void reset() noexcept {
-    // for (auto manager : _managers) {
-    //   manager_node_ptr curr = manager.node();
-    //   curr->manager.reset(_upstream);
-    // }
-    for (auto it = _managers.begin(); it != _managers.end(); ++it) {
-      manager_node_ptr curr = it.node();
-      curr->manager.reset(_upstream);
+  void reset() {
+    for (auto manager : _managers) {
+      manager.node()->manager.reset(_upstream);
     }
     alloc_cache::reset();
     lookup_cache::reset();
@@ -155,9 +148,8 @@ public:
 
   std::size_t size() const noexcept {
     std::size_t total = 0;
-    for (auto it = _managers.begin(); it != _managers.end(); ++it) {
-      manager_node_ptr curr = it.node();
-      total += curr->manager.available_count();
+    for (auto manager : _managers) {
+      total += manager.node()->manager.available_count();
     }
     return total;
   }
@@ -168,7 +160,7 @@ public:
 
     for (auto &manager_node : _managers) {
       if (current_id == id) { return &manager_node.manager; }
-      if (current_id == 0) break;
+      if (current_id == 0) { break; }
       --current_id;
     }
 
@@ -212,9 +204,7 @@ public:
     return "pointer not owned";
   }
 
-  // ========================================================================
-  // allocator_interface implementation (for type-erased pointer resolution)
-  // ========================================================================
+  // allocator_interface implementation
 
   result<void *> get_manager(size_t manager_id) override {
     auto *mgr = ok(get_manager_by_id(manager_id));
@@ -265,7 +255,6 @@ private:
         reinterpret_cast<std::byte *>(block)));
     std::byte *segment_base = ok(manager->get_segment_base(segment_id));
     auto byte_offset = reinterpret_cast<std::byte *>(block) - segment_base;
-    // auto offset = ptr::element_index(segment_base, block);
     fatal(byte_offset < 0, "block before segment base");
     size_t offset = byte_offset / block_size_v;
 
