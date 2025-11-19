@@ -18,6 +18,24 @@ The project consists these components:
 
 ---
 
+## Building
+
+A CMake Preset for Linux is provided. The project has been tested only with the debug configuration using the Clang (version 21) compiler.
+
+### Basic Build
+
+> The `datastructures_test` suite contains the exact tests/cases realted to the assignment, specifically file `queue_assignment.t.cpp` or the `QueueAssignmentTest` suite.
+
+> To run the assignment tests spicifically, run `./build/linux_debug/src/datastructures/datastructures_test --gtest_filter="QueueAssignmentTest*"`
+
+```bash
+cmake --preset=linux_debug
+cmake --build --preset=linux_debug --target allocators_test
+cmake --build --preset=linux_debug --target datastructures_test 
+# deprecated for now
+# cmake --build --preset=linux_debug --target c_api 
+```
+
 ## Overview
 
 The queue is built as a linked list of ring buffers, combining the dynamic growth of linked lists with the cache-friendly locality of fixed-size circular buffers. This hybrid approach provides amortized O(1) operations while minimizing metadata overhead.
@@ -53,9 +71,7 @@ Manages a fixed number of memory segments, each subdivided into uniform blocks. 
 ### Static Allocator Pattern
 
 All datastructures use static allocator pointers rather than per-instance pointers. Since each queue type is templated on its allocator types, all instances of a given queue configuration naturally share the same allocators.
-A typical queue instance consists of just the offset_list's head and tail segmented pointers, totaling approximately 4 bytes.
-
----
+A typical queue instance consists of just the offset_list's head and tail segmented pointers, totaling approximately less than 4 bytes.
 
 ## Memory Layout
 
@@ -69,50 +85,20 @@ The entire queue system operates within a fixed memory budget determined by the 
 
 ---
 
-## Building
+### Build with Precompiled Headers
 
-A CMake Preset for Linux is provided. The project has been tested only with the debug configuration using the Clang (version 21) compiler.
-
-### Basic Build
-
-> ⚠️The `datastructures_test` suite contains the exact tests/cases realted to the assignment
-
-```bash
-cmake --preset=linux_debug
-cmake --build --preset=linux_debug --target allocators_test
-cmake --build --preset=linux_debug --target datastructures_test 
-# deprecated for now
-# cmake --build --preset=linux_debug --target c_api ```
-
-### Build with Precompiled Headers 
+> Not tested extensively
 
 ```bash
 cmake --preset=linux_debug -DITERATORS_USE_PCH=ON
 cmake --build --preset=linux_debug
 ```
 
-### Running Tests
-
-```bash
-# Datastructure tests
-./build/linux_debug/src/datastructures/datastructures_test
-# Allocator tests
-./build/linux_debug/src/allocators/allocators_test
-
-```
-
----
-
-## Library Distribution
-
-All libraries are distributed as header-only INTERFACE targets.
-The CMake configuration includes a directive to generate a compile database, which works with clangd LSP server.
-
----
-
 ## Requirements
 
+> MSVC won't work due to the GCC expression statement usage in the result type
+
 - **Compiler**: C++23 support required
-  - GCC 13+ or Clang 16+ recommended
+  - GCC 13+ or Clang 16+ recommended,
 - **CMake**: 3.16+ (for precompiled headers support)
 - **Platform**: Linux (tested)
